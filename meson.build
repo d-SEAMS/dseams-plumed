@@ -41,6 +41,11 @@ if pymod.found()
     args: [meson.project_source_root() / 'tests' / 'ion_check.py',
            plumed.full_path(), mod.full_path()],
     timeout: 600)
+  test('driver_guests',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'guest_check.py',
+           plumed.full_path(), mod.full_path()],
+    timeout: 600)
   # the library check needs the engine CLI on PATH to write the keys
   seams_cli = find_program('seams', required: false)
   if seams_cli.found()

@@ -70,6 +70,14 @@ off the graph.
 
 =HOPS= (default 3) sets the bonds from the centre in each local topology key.
 
+=GUESTS= lists one atom per guest molecule (methane carbon, THF oxygen,
+an ion) and needs =SIGNATURE=: each guest goes to the nearest cage
+centre (the periodic centroid of a cage's vertices) within
+=GUEST_RADIUS= (default 4 A). =noccupied= counts cages with a guest,
+=nmultiple= cages with more than one, =nfreeguest= guests in no cage:
+the filled-cage count that hydrate nucleation studies bias and commit
+on.
+
 =LIBRARY= names a topology key library from =seams fingerprint --emit-library=,
 or several, comma separated, built at different hop counts: each molecule
 takes the label of the deepest library that holds its key, so a molecule

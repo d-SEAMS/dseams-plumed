@@ -69,6 +69,8 @@ class DseamsCages : public Colvar {
   bool complete_ = false;
   int nOxygen_ = 0;
   int nIon_ = 0;
+  int nGuest_ = 0;
+  double guestRadius_ = 4.0;
   double ionCutoff_ = 3.5;  // Angstrom, first water shell of an ion
   int hops_ = 3;
   bool haveLibrary_ = false;
@@ -125,6 +127,14 @@ void DseamsCages::registerKeywords(Keywords &keys) {
   keys.addOutputComponent("nclasses", "default", "distinct local topology classes on the mutual graph");
   keys.addOutputComponent("nnamed", "default", "molecules whose local key the LIBRARY names");
   keys.addOutputComponent("ncages", "default", "closed polyhedra matching SIGNATURE; 0 when SIGNATURE is unset");
+  keys.add("atoms", "GUESTS",
+           "one atom per guest molecule (methane carbon, THF oxygen, an ion) placed in the "
+           "SIGNATURE cages by the periodic centroid of each cage's vertices");
+  keys.add("compulsory", "GUEST_RADIUS", "4.0",
+           "a guest belongs to the nearest cage centre within this distance (A)");
+  keys.addOutputComponent("noccupied", "default", "SIGNATURE cages holding at least one guest");
+  keys.addOutputComponent("nmultiple", "default", "SIGNATURE cages holding more than one guest");
+  keys.addOutputComponent("nfreeguest", "default", "guests in no SIGNATURE cage");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -144,6 +154,12 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   parse("HOPS", hops_);
   std::string libraryPath;
   parse("SIGNATURE", signatureSpec_);
+  std::vector<AtomNumber> guests;
+  parseAtomList("GUESTS", guests);
+  parse("GUEST_RADIUS", guestRadius_);
+  if (!guests.empty() && signatureSpec_.empty()) {
+    error("GUESTS needs a SIGNATURE to enumerate the cages");
+  }
   parse("LIBRARY", libraryPath);
   if (!libraryPath.empty()) {
     std::size_t start = 0;
@@ -187,22 +203,28 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   checkRead();
   nOxygen_ = static_cast<int>(atoms.size());
   nIon_ = static_cast<int>(ions.size());
+  nGuest_ = static_cast<int>(guests.size());
   // PLUMED reserves the underscore in component names
   names_ = {"nice", "nmax", "nclus", "nic", "nih", "nmixed",
             "chillice", "chillmax", "chillinterfacial", "sixrings",
             "nionice", "nionfront", "nionliq", "nclasses", "nnamed",
-            "ncages"};
+            "ncages", "noccupied", "nmultiple", "nfreeguest"};
   for (const auto &n : names_) {
     addComponent(n);
     componentIsNotPeriodic(n);
   }
   atoms.insert(atoms.end(), ions.begin(), ions.end());
+  atoms.insert(atoms.end(), guests.begin(), guests.end());
   requestAtoms(atoms);
   log.printf("  %d oxygens, cutoff %.3f A, k=%d within %.3f A, completion %s\n",
              nOxygen_, cutoff_, k_, candidate_, complete_ ? "on" : "off");
   if (nIon_ > 0) {
     log.printf("  %d ions read against the assignment, first shell %.3f A\n", nIon_,
                ionCutoff_);
+  }
+  if (nGuest_ > 0) {
+    log.printf("  %d guests placed in the %s cages within %.3f A of a centre\n", nGuest_,
+               signatureSpec_.c_str(), guestRadius_);
   }
   if (haveLibrary_) {
     for (const auto &lib : libraries_) {
@@ -417,13 +439,57 @@ void DseamsCages::calculate() {
   getPntrToComponent("nnamed")->set(named);
 
   double nSig = 0.0;
+  double nOccupied = 0.0;
+  double nMultiple = 0.0;
+  double nFreeGuest = 0.0;
   if (!signatureSpec_.empty()) {
     const auto sig = cage::Signature::parse(signatureSpec_);
     const int depth = std::max(sig.maxRingSize(), 3);
     const auto rings = primitive::ringNetwork(idxU, depth);
-    nSig = static_cast<double>(cage::findBySignature(rings, idxU, sig).size());
+    const auto found = cage::findBySignature(rings, idxU, sig);
+    nSig = static_cast<double>(found.size());
+    if (nGuest_ > 0) {
+      // the centre of a cage is the periodic centroid of its vertices,
+      // every vertex unwrapped to its minimum image about the first
+      std::vector<Vector> centres;
+      centres.reserve(found.size());
+      for (const auto &c : found) {
+        const Vector first = getPosition(c.vertices.front());
+        Vector acc(0.0, 0.0, 0.0);
+        for (const int v : c.vertices) {
+          acc += pbcDistance(first, getPosition(v));
+        }
+        centres.push_back(first + acc / static_cast<double>(c.vertices.size()));
+      }
+      const double r2 = guestRadius_ * guestRadius_ / (lengthScale_ * lengthScale_);
+      std::vector<int> perCage(found.size(), 0);
+      for (int g = 0; g < nGuest_; g++) {
+        const Vector guest = getPosition(nop + nIon_ + g);
+        int best = -1;
+        double bestSq = r2;
+        for (std::size_t c = 0; c < centres.size(); c++) {
+          const double d2 = pbcDistance(centres[c], guest).modulo2();
+          if (d2 <= bestSq) {
+            bestSq = d2;
+            best = static_cast<int>(c);
+          }
+        }
+        if (best < 0) {
+          nFreeGuest += 1.0;
+        } else {
+          perCage[static_cast<std::size_t>(best)] += 1;
+        }
+      }
+      for (const int n : perCage) {
+        nOccupied += n > 0 ? 1.0 : 0.0;
+        nMultiple += n > 1 ? 1.0 : 0.0;
+      }
+    }
   }
   getPntrToComponent("ncages")->set(nSig);
+  getPntrToComponent("noccupied")->set(nOccupied);
+  getPntrToComponent("nmultiple")->set(nMultiple);
+  getPntrToComponent("nfreeguest")->set(nFreeGuest);
 }
 
 } // namespace colvar
