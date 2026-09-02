@@ -36,4 +36,9 @@ if pymod.found()
            plumed.full_path(), mod.full_path()],
     env: {'DSEAMS_PLUMED_DATA': meson.project_source_root() / 'tests'},
     timeout: 1800)
+  test('driver_ions',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'ion_check.py',
+           plumed.full_path(), mod.full_path()],
+    timeout: 600)
 endif
