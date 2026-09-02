@@ -36,8 +36,8 @@ derivatives: they serve PRINT, COMMITTOR basins and analysis, not biasing.
 \plumedfile
 LOAD FILE=libdseams_plumed.so
 ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 COMPLETE
-PRINT ARG=ice.n_ice,ice.n_max,ice.n_ic,ice.n_ih,ice.chill_ice,ice.chill_max STRIDE=100 FILE=ICE
-COMMITTOR ARG=ice.n_max STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
+PRINT ARG=ice.nice,ice.nmax,ice.nic,ice.nih,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
+COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
 \endplumedfile
 
 */
@@ -71,16 +71,16 @@ void DseamsCages::registerKeywords(Keywords &keys) {
            "factor from the PLUMED length unit to Angstrom (10 for nm)");
   keys.addFlag("COMPLETE", false,
                "extend accepted cage labels over edge-sharing six-rings");
-  keys.addOutputComponent("n_ice", "default", "molecules in a hexagonal or double-diamond cage");
-  keys.addOutputComponent("n_max", "default", "largest connected cluster of cage molecules");
-  keys.addOutputComponent("n_clus", "default", "number of connected cage clusters");
-  keys.addOutputComponent("n_ic", "default", "molecules in a double-diamond cage only");
-  keys.addOutputComponent("n_ih", "default", "molecules in a hexagonal cage only");
-  keys.addOutputComponent("n_mixed", "default", "molecules in both cage types");
-  keys.addOutputComponent("chill_ice", "default", "CHILL+ cubic plus hexagonal molecules");
-  keys.addOutputComponent("chill_max", "default", "largest CHILL+ bulk-ice cluster");
-  keys.addOutputComponent("chill_interfacial", "default", "CHILL+ interfacial molecules");
-  keys.addOutputComponent("six_rings", "default", "primitive six-membered rings on the union graph");
+  keys.addOutputComponent("nice", "default", "molecules in a hexagonal or double-diamond cage");
+  keys.addOutputComponent("nmax", "default", "largest connected cluster of cage molecules");
+  keys.addOutputComponent("nclus", "default", "number of connected cage clusters");
+  keys.addOutputComponent("nic", "default", "molecules in a double-diamond cage only");
+  keys.addOutputComponent("nih", "default", "molecules in a hexagonal cage only");
+  keys.addOutputComponent("nmixed", "default", "molecules in both cage types");
+  keys.addOutputComponent("chillice", "default", "CHILL+ cubic plus hexagonal molecules");
+  keys.addOutputComponent("chillmax", "default", "largest CHILL+ bulk-ice cluster");
+  keys.addOutputComponent("chillinterfacial", "default", "CHILL+ interfacial molecules");
+  keys.addOutputComponent("sixrings", "default", "primitive six-membered rings on the union graph");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -95,8 +95,9 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   parse("LENGTH_SCALE", lengthScale_);
   parseFlag("COMPLETE", complete_);
   checkRead();
-  names_ = {"n_ice", "n_max", "n_clus", "n_ic", "n_ih", "n_mixed",
-            "chill_ice", "chill_max", "chill_interfacial", "six_rings"};
+  // PLUMED reserves the underscore in component names
+  names_ = {"nice", "nmax", "nclus", "nic", "nih", "nmixed",
+            "chillice", "chillmax", "chillinterfacial", "sixrings"};
   for (const auto &n : names_) {
     addComponent(n);
     componentIsNotPeriodic(n);
@@ -259,16 +260,16 @@ void DseamsCages::calculate() {
   int nClus = 0;
   clusterFlags(ice, idxU, nMax, nClus);
 
-  getPntrToComponent("n_ice")->set(ih + ic + mixed);
-  getPntrToComponent("n_max")->set(nMax);
-  getPntrToComponent("n_clus")->set(nClus);
-  getPntrToComponent("n_ic")->set(ic);
-  getPntrToComponent("n_ih")->set(ih);
-  getPntrToComponent("n_mixed")->set(mixed);
-  getPntrToComponent("chill_ice")->set(chillN);
-  getPntrToComponent("chill_max")->set(chillMax);
-  getPntrToComponent("chill_interfacial")->set(chillInterfacial);
-  getPntrToComponent("six_rings")->set(static_cast<double>(sixU.size()));
+  getPntrToComponent("nice")->set(ih + ic + mixed);
+  getPntrToComponent("nmax")->set(nMax);
+  getPntrToComponent("nclus")->set(nClus);
+  getPntrToComponent("nic")->set(ic);
+  getPntrToComponent("nih")->set(ih);
+  getPntrToComponent("nmixed")->set(mixed);
+  getPntrToComponent("chillice")->set(chillN);
+  getPntrToComponent("chillmax")->set(chillMax);
+  getPntrToComponent("chillinterfacial")->set(chillInterfacial);
+  getPntrToComponent("sixrings")->set(static_cast<double>(sixU.size()));
 }
 
 } // namespace colvar

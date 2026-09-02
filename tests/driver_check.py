@@ -110,8 +110,8 @@ def main(argv):
         #                        ... seed_ih(14) seed_ic(15) seed_both(16) seed_ice(17) seed_max(18) seed_clus(19)
         bad = 0
         for r, w in zip(rows, ref):
-            got = dict(n_ice=int(float(r[1])), n_max=int(float(r[2])), chill_ice=int(float(r[7])), chill_max=int(float(r[8])))
-            want = dict(n_ice=int(w[17]), n_max=int(w[18]), chill_ice=int(w[8]), chill_max=int(w[9]))
+            got = dict(nice=int(float(r[1])), nmax=int(float(r[2])), chillice=int(float(r[7])), chillmax=int(float(r[8])))
+            want = dict(nice=int(w[17]), nmax=int(w[18]), chillice=int(w[8]), chillmax=int(w[9]))
             if got != want:
                 bad += 1
                 if bad <= 5:

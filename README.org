@@ -15,8 +15,8 @@ comparison. The counts are integers without derivatives: they drive
 #+begin_src plumed
 LOAD FILE=libdseams_plumed.so
 ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 COMPLETE
-PRINT ARG=ice.n_ice,ice.n_max,ice.chill_ice,ice.chill_max STRIDE=100 FILE=ICE
-COMMITTOR ARG=ice.n_max STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
+PRINT ARG=ice.nice,ice.nmax,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
+COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
 #+end_src
 
 Lengths inside the engine are Angstrom; =LENGTH_SCALE= converts from the
@@ -36,8 +36,8 @@ wrap is the fallback.
 * Check against the engine
 
 =tests/driver_check.py= converts a LAMMPS dump to xyz, runs =plumed driver=
-with the module loaded, and compares =n_ice=, =n_max=, =chill_ice= and
-=chill_max= per frame with the engine's =walk_compare= table:
+with the module loaded, and compares =nice=, =nmax=, =chillice= and
+=chillmax= per frame with the engine's =walk_compare= table:
 
 #+begin_src bash
 python tests/driver_check.py $(which plumed) build/libdseams_plumed.so \
