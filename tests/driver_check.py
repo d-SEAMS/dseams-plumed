@@ -92,6 +92,9 @@ def main(argv):
         tmp = pathlib.Path(tmp)
         write_xyz(frames, tmp / "traj.xyz")
         dat = (data / "plumed.dat").read_text().replace("ATOMS=1-4096", f"ATOMS=1-{n}")
+        if walk is not None:
+            # walk_compare's seeded columns carry no ring completion
+            dat = dat.replace(" COMPLETE", "")
         (tmp / "plumed.dat").write_text("LOAD FILE=" + module + "\n" + dat)
         boxarg = f"{box[0]},{box[1]},{box[2]}" if all(abs(t) < 1e-12 for t in box[3:]) \
             else f"{box[0]},{box[1]},{box[2]},{box[3]},{box[4]},{box[5]}"
