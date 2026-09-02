@@ -205,3 +205,8 @@ Elucidation Analysis for Molecular Simulations. /J. Chem. Inf. Model./
   doi     = {10.1021/acs.jcim.0c00031},
 }
 #+end_src
+
+* Continuous integration
+
+Every push to =main= builds the module against the pinned engine in the
+pixi environment and runs the driver tests (=pixi run test=).
