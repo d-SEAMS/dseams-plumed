@@ -57,9 +57,13 @@ def read_dump_frames(path, max_frames=None, atom_type=1):
 
 
 def write_xyz(frames, path):
+    """PLUMED's xyz reader takes the cell from the comment line: nine numbers
+    are the three lattice vectors, so a per-frame NPT box travels with the
+    frame and no --box is needed."""
     with open(path, "w") as out:
-        for _, pos in frames:
-            out.write(f"{len(pos)}\n\n")
+        for (lx, ly, lz, xy, xz, yz), pos in frames:
+            out.write(f"{len(pos)}\n")
+            out.write(f"{lx:.6f} 0 0 {xy:.6f} {ly:.6f} 0 {xz:.6f} {yz:.6f} {lz:.6f}\n")
             for x, y, z in pos:
                 out.write(f"O {x:.6f} {y:.6f} {z:.6f}\n")
 
@@ -84,10 +88,6 @@ def main(argv):
         return 2
     frames = read_dump_frames(dump, nmax)
     n = len(frames[0][1])
-    box = frames[0][0]
-    if any(abs(f[0][i] - box[i]) > 1e-6 for f in frames for i in range(6)):
-        print("box changes between frames; driver --box is per run, pass one frame", file=sys.stderr)
-        return 2
     with tempfile.TemporaryDirectory() as tmp:
         tmp = pathlib.Path(tmp)
         write_xyz(frames, tmp / "traj.xyz")
@@ -96,11 +96,12 @@ def main(argv):
             # walk_compare's seeded columns carry no ring completion
             dat = dat.replace(" COMPLETE", "")
         (tmp / "plumed.dat").write_text("LOAD FILE=" + module + "\n" + dat)
-        boxarg = f"{box[0]},{box[1]},{box[2]}" if all(abs(t) < 1e-12 for t in box[3:]) \
-            else f"{box[0]},{box[1]},{box[2]},{box[3]},{box[4]},{box[5]}"
         cmd = [plumed, "driver", "--plumed", "plumed.dat", "--ixyz", "traj.xyz",
-               "--box", boxarg, "--length-units", "A"]
-        subprocess.run(cmd, cwd=tmp, check=True)
+               "--length-units", "A"]
+        proc = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True)
+        if proc.returncode != 0:
+            print(proc.stdout[-4000:], proc.stderr[-4000:], file=sys.stderr)
+            return proc.returncode
         rows = [l.split() for l in (tmp / "ICE").read_text().splitlines() if not l.startswith("#")]
     print(f"frames {len(rows)}; first {rows[0]}; last {rows[-1]}")
     if walk is not None:
