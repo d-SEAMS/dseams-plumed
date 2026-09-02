@@ -16,10 +16,12 @@ plumed_inc = run_command(plumed, 'info', '--include-dir', check: true).stdout().
 plumed_root = run_command(plumed, 'info', '--root', check: true).stdout().strip()
 message('plumed include dir: ' + plumed_inc)
 
+# -isystem strings rather than include_directories(): the pixi environment
+# that holds plumed can live inside this source tree, which meson refuses
+# to reference through include_directories
 mod = shared_module('dseams_plumed', 'src/DseamsCages.cpp',
   dependencies: [yds_dep],
-  include_directories: include_directories(plumed_inc, plumed_inc / 'plumed', is_system: true),
-  cpp_args: ['-D__PLUMED_HAS_DLOPEN'],
+  cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN'],
   name_prefix: 'lib',
   install: true,
   install_dir: get_option('libdir'))
