@@ -58,3 +58,18 @@ fix npt all npt temp 215 215 1000 iso 1 1 10000
 
 with =plumed.dat= as above and =LENGTH_SCALE=1.0= after =UNITS LENGTH=A=
 (LAMMPS =units real= is Angstrom).
+
+* Topology keys
+
+Every molecule carries a local topology key (its rooted bonded
+neighbourhood on the mutual graph within =HOPS= bonds, three by default).
+=nclasses= counts the distinct keys in the frame. With =LIBRARY= pointing
+at a key library written by =seams fingerprint --emit-library LABEL= (or by
+the Python and Lua front ends), =nnamed= counts the molecules whose key the
+library holds: a polymorph-agnostic order parameter, a hydrate framework
+or a high-pressure ice as easily as ice I.
+
+#+begin_example
+hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys HOPS=3
+PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
+#+end_example

@@ -12,8 +12,11 @@
 #include <franzblau.hpp>
 #include <mol_sys.hpp>
 #include <neighbours.hpp>
+#include <topo_fingerprint.hpp>
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -48,6 +51,8 @@ PRINT ARG=ice.nice,ice.nmax,ice.nic,ice.nih,ice.chillice,ice.chillmax STRIDE=100
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
 brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 COMPLETE
 PRINT ARG=brine.nice,brine.nmax,brine.nionice,brine.nionfront,brine.nionliq STRIDE=500 FILE=BRINE
+hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys HOPS=3
+PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
 \endplumedfile
 
 */
@@ -62,6 +67,9 @@ class DseamsCages : public Colvar {
   int nOxygen_ = 0;
   int nIon_ = 0;
   double ionCutoff_ = 3.5;  // Angstrom, first water shell of an ion
+  int hops_ = 3;
+  bool haveLibrary_ = false;
+  topo::KeyLibrary library_;
   std::vector<std::string> names_;
 
 public:
@@ -100,6 +108,12 @@ void DseamsCages::registerKeywords(Keywords &keys) {
   keys.addOutputComponent("nionice", "default", "ions whose first water shell is all cage molecules");
   keys.addOutputComponent("nionfront", "default", "ions with a mixed first shell");
   keys.addOutputComponent("nionliq", "default", "ions with no cage molecule in the first shell");
+  keys.add("optional", "LIBRARY",
+           "a topology key library (seams fingerprint --emit-library) whose labels name "
+           "molecules by their rooted neighbourhood on the mutual graph");
+  keys.add("compulsory", "HOPS", "3", "bonds from the centre in each local topology key");
+  keys.addOutputComponent("nclasses", "default", "distinct local topology classes on the mutual graph");
+  keys.addOutputComponent("nnamed", "default", "molecules whose local key the LIBRARY names");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -116,13 +130,29 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   std::vector<AtomNumber> ions;
   parseAtomList("IONS", ions);
   parse("ION_CUTOFF", ionCutoff_);
+  parse("HOPS", hops_);
+  std::string libraryPath;
+  parse("LIBRARY", libraryPath);
+  if (!libraryPath.empty()) {
+    std::ifstream in(libraryPath);
+    if (!in) {
+      error("cannot read LIBRARY " + libraryPath);
+    }
+    std::stringstream buf;
+    buf << in.rdbuf();
+    library_ = topo::readLibrary(buf.str());
+    haveLibrary_ = true;
+    if (library_.hops != hops_) {
+      error("LIBRARY was built at a different HOPS");
+    }
+  }
   checkRead();
   nOxygen_ = static_cast<int>(atoms.size());
   nIon_ = static_cast<int>(ions.size());
   // PLUMED reserves the underscore in component names
   names_ = {"nice", "nmax", "nclus", "nic", "nih", "nmixed",
             "chillice", "chillmax", "chillinterfacial", "sixrings",
-            "nionice", "nionfront", "nionliq"};
+            "nionice", "nionfront", "nionliq", "nclasses", "nnamed"};
   for (const auto &n : names_) {
     addComponent(n);
     componentIsNotPeriodic(n);
@@ -134,6 +164,10 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   if (nIon_ > 0) {
     log.printf("  %d ions read against the assignment, first shell %.3f A\n", nIon_,
                ionCutoff_);
+  }
+  if (haveLibrary_) {
+    log.printf("  key library with %zu keys (%s, %d hops)\n", library_.labelOf.size(),
+               library_.method.c_str(), library_.hops);
   }
   log.printf("  counts carry no derivatives; use them for PRINT, COMMITTOR and analysis\n");
 }
@@ -329,6 +363,16 @@ void DseamsCages::calculate() {
   getPntrToComponent("nionice")->set(ionIce);
   getPntrToComponent("nionfront")->set(ionFront);
   getPntrToComponent("nionliq")->set(ionLiq);
+
+  // Local topology keys on the mutual graph, and the library that names them.
+  // The ring census is not needed here, so it stops at three-rings.
+  const auto fp = topo::fingerprint(idxS, hops_, 3);
+  getPntrToComponent("nclasses")->set(static_cast<double>(fp.classes.size()));
+  int named = 0;
+  if (haveLibrary_ && fp.method == library_.method) {
+    named = topo::matchLibrary(fp, library_).matched;
+  }
+  getPntrToComponent("nnamed")->set(named);
 }
 
 } // namespace colvar
