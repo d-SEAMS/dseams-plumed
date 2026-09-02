@@ -1,7 +1,7 @@
 [wrap-git]
 directory = seams-core
-url = https://github.com/HaoZeke/seams-core.git
-revision = ba0634f5f19129ffbce86388d6dbd470e5ed94fa
+url = https://github.com/d-SEAMS/seams-core.git
+revision = 964c586feb4fbd96b56257c493157e3055b626e8
 depth = 1
 
 [provide]
