@@ -5,12 +5,14 @@ The d-SEAMS topological ice score as a PLUMED action.
 
 =DSEAMS_CAGES= takes a group of oxygen atoms and, every step, builds the
 mutual and union four-nearest-neighbour graphs, the primitive six-membered
-rings and the seeded cage assignment of d-SEAMS 2.0, optionally completed
-over edge-sharing rings. It reports how many molecules sit in a hexagonal
-or double-diamond cage, the largest connected cluster of them, the split
-into ice Ic, ice Ih and mixed, and CHILL+ on the same frame for
-comparison. The counts are integers without derivatives: they drive
-=PRINT=, =COMMITTOR= basins and stopping conditions, not a bias.
+rings and the seeded cage assignment of d-SEAMS 2.0. With =COMPLETE= it
+fills the last vertex of six-rings whose other vertices carry a label.
+The action reports cage occupancy, the largest connected cluster, the
+split into ice Ic, ice Ih and mixed, and the four-neighbour star method
+=CHILL+= on the same frame. Integer counts without derivatives drive
+=PRINT=, =COMMITTOR= basins and stopping conditions. Those counts use
+the A length unit inside the engine. =LENGTH_SCALE= converts from the
+PLUMED length unit (10 for the default nm, 1 after =UNITS LENGTH=A=).
 
 #+begin_src plumed
 LOAD FILE=libdseams_plumed.so
@@ -19,36 +21,119 @@ PRINT ARG=ice.nice,ice.nmax,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
 #+end_src
 
-Lengths inside the engine are Angstrom; =LENGTH_SCALE= converts from the
-PLUMED length unit (10 for the default nm, 1 after =UNITS LENGTH=A=).
+* Install
 
-* Build
+Build the shared module against an installed PLUMED. Meson runs
+=plumed info --include-dir= for the headers. The kernel resolves the
+symbols when =LOAD= dlopens the file, so the module does not link
+against libplumed. An installed =seams-core= (=pkg-config seams-core=)
+supplies the engine; the wrap is the fallback.
+
+With pixi (plumed, compilers, meson):
 
 #+begin_src bash
-pixi install            # plumed, compilers, meson; seams-core comes as a wrap
+pixi install
 pixi run build          # build/libdseams_plumed.so
-pixi run test           # plumed driver over the mW cubic fixture
+pixi run test
 #+end_src
 
-Or against an installed engine: =pkg-config seams-core= is enough, the
-wrap is the fallback.
-
-* Check against the engine
-
-=tests/driver_check.py= converts a LAMMPS dump to xyz, runs =plumed driver=
-with the module loaded, and compares =nice=, =nmax=, =chillice= and
-=chillmax= per frame with the engine's =walk_compare= table:
+Without pixi, put an installed =plumed= on =PATH= and run:
 
 #+begin_src bash
-python tests/driver_check.py $(which plumed) build/libdseams_plumed.so \
-    data/nucleation.lammpstrj results/walks/figshare-nucleation.txt
+meson setup build --buildtype=release
+meson compile -C build
+meson install -C build   # libdseams_plumed.so into libdir
 #+end_src
+
+=LOAD FILE== takes that path, or a relative path to
+=build/libdseams_plumed.so= from the working directory of the run.
+
+* Keywords
+
+=ATOMS= (required) names the oxygen atoms of the water molecules.
+
+=CUTOFF= (default 3.5) sets the neighbour cutoff in A for the =CHILL+= graph.
+
+=CANDIDATE= (default 5.5) sets the candidate shell in A for the four-nearest walk.
+
+=K= (default 4) sets the neighbours per molecule in the bonded graph.
+
+=LENGTH_SCALE= (default 10.0) converts the PLUMED length unit to A.
+
+=COMPLETE= (flag, off) fills the last vertex of six-rings whose other
+vertices carry a label.
+
+=IONS= names ions read against the water assignment. Those ions stay
+off the graph.
+
+=ION_CUTOFF= (default 3.5) sets the radius in A of an ion's first water shell.
+
+=HOPS= (default 3) sets the bonds from the centre in each local topology key.
+
+=LIBRARY= names a topology key library from =seams fingerprint --emit-library=.
+
+Omit =LIBRARY= or =IONS= when unused. A library built at a different
+=HOPS= is an error.
+
+* Components
+
+Each component reports an integer count with no derivative.
+
+=nice= is the occupancy of hexagonal or double-diamond cages.
+=nmax= is the largest connected cluster of cage molecules.
+=nclus= is the number of connected cage clusters.
+=nic= counts double-diamond cage members with no hexagonal label.
+=nih= counts hexagonal cage members with no double-diamond label.
+=nmixed= counts members of both cage types.
+=chillice= counts =CHILL+= cubic plus hexagonal molecules.
+=chillmax= is the largest =CHILL+= bulk-ice cluster.
+=chillinterfacial= counts =CHILL+= interfacial molecules.
+=sixrings= counts primitive six-membered rings on the union graph.
+=nionice= counts ions whose first water shell is all cage molecules.
+=nionfront= counts ions with a mixed first shell.
+=nionliq= counts ions with no cage molecule in the first shell.
+=nclasses= counts distinct local topology classes on the mutual graph.
+=nnamed= counts molecules whose local key the =LIBRARY= names.
+
+Omit =IONS= and the three ion components stay 0. Omit =LIBRARY= and
+=nnamed= stays 0.
+
+* Ions
+
+Ions stay off the hydrogen-bond network. =IONS= builds the graph on
+the oxygen atoms and reads each ion against that assignment. Water
+inside =ION_CUTOFF= of the ion forms the first shell. An ion sits in
+ice if every shell molecule carries a cage label. It sits in liquid if
+no shell molecule does. Mixed shells put the ion at the front. The
+three ion components report brine rejection at a growing front in an
+electrolyte, for example TIP4P/2005 with the Madrid 2019 ions.
+
+#+begin_src plumed
+LOAD FILE=libdseams_plumed.so
+brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 COMPLETE
+PRINT ARG=brine.nice,brine.nmax,brine.nionice,brine.nionfront,brine.nionliq STRIDE=500 FILE=BRINE
+#+end_src
+
+* Topology keys
+
+Every molecule carries a local topology key: its rooted bonded
+neighbourhood on the mutual graph within =HOPS= bonds (three by default).
+=nclasses= counts the distinct keys in the frame. Point =LIBRARY= at a
+key library written by =seams fingerprint --emit-library LABEL=, or by
+the Python and Lua front ends. Then =nnamed= counts the molecules whose
+key the library names. The same count names a hydrate framework or a
+high-pressure ice.
+
+#+begin_example
+hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys HOPS=3
+PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
+#+end_example
 
 * Inside LAMMPS
 
-=fix plumed= must come before any fix that computes the pressure
-internally (=fix npt=, =fix press/berendsen=), or LAMMPS refuses the
-input. A minimal mW run that logs the score every 500 steps and stops on
+Place =fix plumed= before =fix npt= or =fix press/berendsen=. Those
+fixes compute the pressure internally. LAMMPS refuses a reversed
+order. A minimal mW run logs the score every 500 steps. It stops on
 a committor basin:
 
 #+begin_src lammps
@@ -56,20 +141,54 @@ fix pl  all plumed plumedfile plumed.dat outfile plumed.log
 fix npt all npt temp 215 215 1000 iso 1 1 10000
 #+end_src
 
-with =plumed.dat= as above and =LENGTH_SCALE=1.0= after =UNITS LENGTH=A=
-(LAMMPS =units real= is Angstrom).
+Use =plumed.dat= as above and =LENGTH_SCALE=1.0= after =UNITS LENGTH=A=.
+LAMMPS =units real= matches the A unit of the engine.
 
-* Topology keys
+* Driver tests
 
-Every molecule carries a local topology key (its rooted bonded
-neighbourhood on the mutual graph within =HOPS= bonds, three by default).
-=nclasses= counts the distinct keys in the frame. With =LIBRARY= pointing
-at a key library written by =seams fingerprint --emit-library LABEL= (or by
-the Python and Lua front ends), =nnamed= counts the molecules whose key the
-library holds: a polymorph-agnostic order parameter, a hydrate framework
-or a high-pressure ice as easily as ice I.
+Meson registers three =plumed driver= checks.
 
-#+begin_example
-hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys HOPS=3
-PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
-#+end_example
+The nucleation check lives in =tests/driver_check.py=. It converts a
+LAMMPS dump to xyz and runs the driver with the module loaded. Per
+frame it compares =nice=, =nmax=, =chillice= and =chillmax= with the
+engine =walk_compare= table. Absent a dump, the script uses the mW
+cubic fixture under =DSEAMS_PLUMED_DATA= or the seams-core subproject.
+The dump becomes xyz with the cell on the comment line. The check
+does not depend on the molfile plugin.
+
+#+begin_src bash
+python tests/driver_check.py $(which plumed) build/libdseams_plumed.so \
+    data/nucleation.lammpstrj results/walks/figshare-nucleation.txt
+#+end_src
+
+=driver_ions= (=tests/ion_check.py=) places two ions on a cubic-diamond
+oxygen lattice. It checks =nionice= 2, =nionfront= 0, =nionliq= 0, with
+=nice= still the remaining lattice.
+
+=driver_library= (=tests/library_check.py=) writes a cubic-diamond
+lattice, emits its key library with =seams fingerprint --emit-library=,
+and checks that =nnamed= equals the molecule count and =nclasses= is
+one. Meson registers this test when a =seams= binary is on =PATH=.
+
+* Citation
+
+Cite the methods paper if you use this module.
+
+Goswami, R.; Goswami, A.; Singh, J. K. d-SEAMS: Deferred Structural
+Elucidation Analysis for Molecular Simulations. /J. Chem. Inf. Model./
+2020, 60, 2169-2177.
+[[https://doi.org/10.1021/acs.jcim.0c00031][10.1021/acs.jcim.0c00031]]
+(arXiv:1909.09830).
+
+#+begin_src bibtex
+@Article{Goswami2020,
+  author  = {Goswami, Rohit and Goswami, Amrita and Singh, Jayant Kumar},
+  title   = {{d-SEAMS}: Deferred Structural Elucidation Analysis for Molecular Simulations},
+  journal = {Journal of Chemical Information and Modeling},
+  year    = {2020},
+  volume  = {60},
+  number  = {4},
+  pages   = {2169-2177},
+  doi     = {10.1021/acs.jcim.0c00031},
+}
+#+end_src
