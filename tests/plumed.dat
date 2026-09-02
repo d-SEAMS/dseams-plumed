@@ -1,0 +1,3 @@
+UNITS LENGTH=A
+ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 CANDIDATE=5.5 K=4 LENGTH_SCALE=1.0 COMPLETE
+PRINT ARG=ice.n_ice,ice.n_max,ice.n_clus,ice.n_ic,ice.n_ih,ice.n_mixed,ice.chill_ice,ice.chill_max,ice.chill_interfacial,ice.six_rings STRIDE=1 FILE=ICE FMT=%8.0f

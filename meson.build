@@ -1,0 +1,35 @@
+project('dseams-plumed', 'cpp',
+  version: '0.1.0',
+  license: 'MIT',
+  default_options: ['cpp_std=c++20', 'buildtype=release', 'warning_level=2'])
+
+# The engine: an installed seams-core (pkg-config) or the wrap
+yds_dep = dependency('seams-core', required: false)
+if not yds_dep.found()
+  yds_dep = dependency('seams-core', fallback: ['seams-core', 'yds_dep'])
+endif
+
+# PLUMED headers come from the installed plumed; the kernel resolves the
+# symbols when LOAD dlopens the module, so nothing is linked here
+plumed = find_program('plumed', required: true)
+plumed_inc = run_command(plumed, 'info', '--include-dir', check: true).stdout().strip()
+plumed_root = run_command(plumed, 'info', '--root', check: true).stdout().strip()
+message('plumed include dir: ' + plumed_inc)
+
+mod = shared_module('dseams_plumed', 'src/DseamsCages.cpp',
+  dependencies: [yds_dep],
+  include_directories: include_directories(plumed_inc, plumed_inc / 'plumed', is_system: true),
+  cpp_args: ['-D__PLUMED_HAS_DLOPEN'],
+  name_prefix: 'lib',
+  install: true,
+  install_dir: get_option('libdir'))
+
+pymod = import('python').find_installation('python3', required: false)
+if pymod.found()
+  test('driver_nucleation',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'driver_check.py',
+           plumed.full_path(), mod.full_path()],
+    env: {'DSEAMS_PLUMED_DATA': meson.project_source_root() / 'tests'},
+    timeout: 1800)
+endif

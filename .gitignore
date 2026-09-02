@@ -1,0 +1,5 @@
+build/
+.pixi/
+subprojects/seams-core/
+subprojects/packagecache/
+__pycache__/

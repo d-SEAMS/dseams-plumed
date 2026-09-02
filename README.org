@@ -1,0 +1,45 @@
+#+TITLE: dseams-plumed
+#+OPTIONS: toc:nil
+
+The d-SEAMS topological ice score as a PLUMED action.
+
+=DSEAMS_CAGES= takes a group of oxygen atoms and, every step, builds the
+mutual and union four-nearest-neighbour graphs, the primitive six-membered
+rings and the seeded cage assignment of d-SEAMS 2.0, optionally completed
+over edge-sharing rings. It reports how many molecules sit in a hexagonal
+or double-diamond cage, the largest connected cluster of them, the split
+into ice Ic, ice Ih and mixed, and CHILL+ on the same frame for
+comparison. The counts are integers without derivatives: they drive
+=PRINT=, =COMMITTOR= basins and stopping conditions, not a bias.
+
+#+begin_src plumed
+LOAD FILE=libdseams_plumed.so
+ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 COMPLETE
+PRINT ARG=ice.n_ice,ice.n_max,ice.chill_ice,ice.chill_max STRIDE=100 FILE=ICE
+COMMITTOR ARG=ice.n_max STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
+#+end_src
+
+Lengths inside the engine are Angstrom; =LENGTH_SCALE= converts from the
+PLUMED length unit (10 for the default nm, 1 after =UNITS LENGTH=A=).
+
+* Build
+
+#+begin_src bash
+pixi install            # plumed, compilers, meson; seams-core comes as a wrap
+pixi run build          # build/libdseams_plumed.so
+pixi run test           # plumed driver over the mW cubic fixture
+#+end_src
+
+Or against an installed engine: =pkg-config seams-core= is enough, the
+wrap is the fallback.
+
+* Check against the engine
+
+=tests/driver_check.py= converts a LAMMPS dump to xyz, runs =plumed driver=
+with the module loaded, and compares =n_ice=, =n_max=, =chill_ice= and
+=chill_max= per frame with the engine's =walk_compare= table:
+
+#+begin_src bash
+python tests/driver_check.py $(which plumed) build/libdseams_plumed.so \
+    data/nucleation.lammpstrj results/walks/figshare-nucleation.txt
+#+end_src

@@ -1,0 +1,8 @@
+[wrap-git]
+directory = seams-core
+url = https://github.com/HaoZeke/seams-core.git
+revision = e785640850774b56bd540c4890869b13fa259523
+depth = 1
+
+[provide]
+seams-core = yds_dep
