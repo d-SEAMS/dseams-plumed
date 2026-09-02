@@ -43,3 +43,18 @@ with the module loaded, and compares =nice=, =nmax=, =chillice= and
 python tests/driver_check.py $(which plumed) build/libdseams_plumed.so \
     data/nucleation.lammpstrj results/walks/figshare-nucleation.txt
 #+end_src
+
+* Inside LAMMPS
+
+=fix plumed= must come before any fix that computes the pressure
+internally (=fix npt=, =fix press/berendsen=), or LAMMPS refuses the
+input. A minimal mW run that logs the score every 500 steps and stops on
+a committor basin:
+
+#+begin_src lammps
+fix pl  all plumed plumedfile plumed.dat outfile plumed.log
+fix npt all npt temp 215 215 1000 iso 1 1 10000
+#+end_src
+
+with =plumed.dat= as above and =LENGTH_SCALE=1.0= after =UNITS LENGTH=A=
+(LAMMPS =units real= is Angstrom).
