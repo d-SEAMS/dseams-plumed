@@ -12,8 +12,10 @@ endif
 # PLUMED headers come from the installed plumed; the kernel resolves the
 # symbols when LOAD dlopens the module, so nothing is linked here
 plumed = find_program('plumed', required: true)
-plumed_inc = run_command(plumed, 'info', '--include-dir', check: true).stdout().strip()
-plumed_root = run_command(plumed, 'info', '--root', check: true).stdout().strip()
+# An MPI-enabled plumed can print launcher notices before the answer; the
+# path is the last line
+plumed_inc = run_command(plumed, 'info', '--include-dir', check: true).stdout().strip().split('\n')[-1].strip()
+plumed_root = run_command(plumed, 'info', '--root', check: true).stdout().strip().split('\n')[-1].strip()
 message('plumed include dir: ' + plumed_inc)
 
 # -isystem strings rather than include_directories(): the pixi environment
