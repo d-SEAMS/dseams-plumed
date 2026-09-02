@@ -31,6 +31,14 @@ reports molecule counts and the largest connected ice cluster. CHILL+ on
 the cutoff graph is reported next to it. The counts are integers with no
 derivatives: they serve PRINT, COMMITTOR basins and analysis, not biasing.
 
+Ions are not part of the hydrogen-bond network. With IONS the graph is
+built on the oxygens alone and each ion is read against it: the water
+within ION_CUTOFF of the ion is its first shell, and the ion counts as in
+ice when every shell molecule carries a cage label, in liquid when none
+does, and at the front otherwise. That is the brine-rejection observable
+of a growing front in an electrolyte (TIP4P/2005 with the Madrid 2019
+ions, for instance).
+
 \par Examples
 
 \plumedfile
@@ -38,6 +46,8 @@ LOAD FILE=libdseams_plumed.so
 ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 COMPLETE
 PRINT ARG=ice.nice,ice.nmax,ice.nic,ice.nih,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
+brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 COMPLETE
+PRINT ARG=brine.nice,brine.nmax,brine.nionice,brine.nionfront,brine.nionliq STRIDE=500 FILE=BRINE
 \endplumedfile
 
 */
@@ -49,6 +59,9 @@ class DseamsCages : public Colvar {
   int k_ = 4;
   double lengthScale_ = 10.0;  // internal length unit -> Angstrom (nm default)
   bool complete_ = false;
+  int nOxygen_ = 0;
+  int nIon_ = 0;
+  double ionCutoff_ = 3.5;  // Angstrom, first water shell of an ion
   std::vector<std::string> names_;
 
 public:
@@ -70,7 +83,10 @@ void DseamsCages::registerKeywords(Keywords &keys) {
   keys.add("compulsory", "LENGTH_SCALE", "10.0",
            "factor from the PLUMED length unit to Angstrom (10 for nm)");
   keys.addFlag("COMPLETE", false,
-               "extend accepted cage labels over edge-sharing six-rings");
+               "fill the last vertex of six-rings whose other vertices carry a label");
+  keys.add("atoms", "IONS", "ions read against the water assignment; not part of the graph");
+  keys.add("compulsory", "ION_CUTOFF", "3.5",
+           "radius in Angstrom of an ion's first water shell");
   keys.addOutputComponent("nice", "default", "molecules in a hexagonal or double-diamond cage");
   keys.addOutputComponent("nmax", "default", "largest connected cluster of cage molecules");
   keys.addOutputComponent("nclus", "default", "number of connected cage clusters");
@@ -81,6 +97,9 @@ void DseamsCages::registerKeywords(Keywords &keys) {
   keys.addOutputComponent("chillmax", "default", "largest CHILL+ bulk-ice cluster");
   keys.addOutputComponent("chillinterfacial", "default", "CHILL+ interfacial molecules");
   keys.addOutputComponent("sixrings", "default", "primitive six-membered rings on the union graph");
+  keys.addOutputComponent("nionice", "default", "ions whose first water shell is all cage molecules");
+  keys.addOutputComponent("nionfront", "default", "ions with a mixed first shell");
+  keys.addOutputComponent("nionliq", "default", "ions with no cage molecule in the first shell");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -94,17 +113,28 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   parse("K", k_);
   parse("LENGTH_SCALE", lengthScale_);
   parseFlag("COMPLETE", complete_);
+  std::vector<AtomNumber> ions;
+  parseAtomList("IONS", ions);
+  parse("ION_CUTOFF", ionCutoff_);
   checkRead();
+  nOxygen_ = static_cast<int>(atoms.size());
+  nIon_ = static_cast<int>(ions.size());
   // PLUMED reserves the underscore in component names
   names_ = {"nice", "nmax", "nclus", "nic", "nih", "nmixed",
-            "chillice", "chillmax", "chillinterfacial", "sixrings"};
+            "chillice", "chillmax", "chillinterfacial", "sixrings",
+            "nionice", "nionfront", "nionliq"};
   for (const auto &n : names_) {
     addComponent(n);
     componentIsNotPeriodic(n);
   }
+  atoms.insert(atoms.end(), ions.begin(), ions.end());
   requestAtoms(atoms);
-  log.printf("  %zu oxygens, cutoff %.3f A, k=%d within %.3f A, completion %s\n",
-             atoms.size(), cutoff_, k_, candidate_, complete_ ? "on" : "off");
+  log.printf("  %d oxygens, cutoff %.3f A, k=%d within %.3f A, completion %s\n",
+             nOxygen_, cutoff_, k_, candidate_, complete_ ? "on" : "off");
+  if (nIon_ > 0) {
+    log.printf("  %d ions read against the assignment, first shell %.3f A\n", nIon_,
+               ionCutoff_);
+  }
   log.printf("  counts carry no derivatives; use them for PRINT, COMMITTOR and analysis\n");
 }
 
@@ -162,7 +192,7 @@ void clusterFlags(const std::vector<char> &flag,
 } // namespace
 
 void DseamsCages::calculate() {
-  const int nop = static_cast<int>(getNumberOfAtoms());
+  const int nop = nOxygen_;
   molSys::PointCloud<molSys::Point<double>, double> cloud;
   cloud.nop = nop;
   cloud.currentFrame = getStep();
@@ -260,6 +290,32 @@ void DseamsCages::calculate() {
   int nClus = 0;
   clusterFlags(ice, idxU, nMax, nClus);
 
+  // Ions against the assignment: the water within ionCutoff_ is the first
+  // shell; all labelled is in ice, none labelled is liquid, else front
+  int ionIce = 0;
+  int ionFront = 0;
+  int ionLiq = 0;
+  const double shell2 = ionCutoff_ * ionCutoff_ / (lengthScale_ * lengthScale_);
+  for (int a = 0; a < nIon_; a++) {
+    const Vector ionPos = getPosition(nop + a);
+    int inShell = 0;
+    int labelled = 0;
+    for (int i = 0; i < nop; i++) {
+      const Vector d = pbcDistance(getPosition(i), ionPos);
+      if (d.modulo2() < shell2) {
+        ++inShell;
+        labelled += ice[static_cast<std::size_t>(i)] ? 1 : 0;
+      }
+    }
+    if (inShell > 0 && labelled == inShell) {
+      ++ionIce;
+    } else if (labelled > 0) {
+      ++ionFront;
+    } else {
+      ++ionLiq;
+    }
+  }
+
   getPntrToComponent("nice")->set(ih + ic + mixed);
   getPntrToComponent("nmax")->set(nMax);
   getPntrToComponent("nclus")->set(nClus);
@@ -270,6 +326,9 @@ void DseamsCages::calculate() {
   getPntrToComponent("chillmax")->set(chillMax);
   getPntrToComponent("chillinterfacial")->set(chillInterfacial);
   getPntrToComponent("sixrings")->set(static_cast<double>(sixU.size()));
+  getPntrToComponent("nionice")->set(ionIce);
+  getPntrToComponent("nionfront")->set(ionFront);
+  getPntrToComponent("nionliq")->set(ionLiq);
 }
 
 } // namespace colvar
