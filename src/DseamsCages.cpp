@@ -9,6 +9,7 @@
 
 #include <bop.hpp>
 #include <cage_affiliation.hpp>
+#include <cage_enum.hpp>
 #include <franzblau.hpp>
 #include <mol_sys.hpp>
 #include <neighbours.hpp>
@@ -53,6 +54,8 @@ brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 COMPLETE
 PRINT ARG=brine.nice,brine.nmax,brine.nionice,brine.nionfront,brine.nionliq STRIDE=500 FILE=BRINE
 hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys HOPS=3
 PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
+sod: DSEAMS_CAGES ATOMS=1-324 CUTOFF=3.5 SIGNATURE=sodalite
+PRINT ARG=sod.ncages STRIDE=100 FILE=SOD
 \endplumedfile
 
 */
@@ -71,6 +74,7 @@ class DseamsCages : public Colvar {
   bool haveLibrary_ = false;
   topo::KeyLibrary library_;                 ///< the deepest library, at HOPS
   std::vector<topo::KeyLibrary> libraries_;  ///< every library when several are given
+  std::string signatureSpec_;
   std::vector<std::string> names_;
 
 public:
@@ -115,8 +119,12 @@ void DseamsCages::registerKeywords(Keywords &keys) {
            "comma separated, built at different hop counts name each molecule by the "
            "deepest that knows it");
   keys.add("compulsory", "HOPS", "3", "bonds from the centre in each local topology key");
+  keys.add("optional", "SIGNATURE",
+           "ring-size census (4:6,6:8) or named table (sodalite|alpha|512|51262|hc|ddc); "
+           "ncages is the number of closed polyhedra");
   keys.addOutputComponent("nclasses", "default", "distinct local topology classes on the mutual graph");
   keys.addOutputComponent("nnamed", "default", "molecules whose local key the LIBRARY names");
+  keys.addOutputComponent("ncages", "default", "closed polyhedra matching SIGNATURE; 0 when SIGNATURE is unset");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -135,6 +143,7 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   parse("ION_CUTOFF", ionCutoff_);
   parse("HOPS", hops_);
   std::string libraryPath;
+  parse("SIGNATURE", signatureSpec_);
   parse("LIBRARY", libraryPath);
   if (!libraryPath.empty()) {
     std::size_t start = 0;
@@ -181,7 +190,8 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   // PLUMED reserves the underscore in component names
   names_ = {"nice", "nmax", "nclus", "nic", "nih", "nmixed",
             "chillice", "chillmax", "chillinterfacial", "sixrings",
-            "nionice", "nionfront", "nionliq", "nclasses", "nnamed"};
+            "nionice", "nionfront", "nionliq", "nclasses", "nnamed",
+            "ncages"};
   for (const auto &n : names_) {
     addComponent(n);
     componentIsNotPeriodic(n);
@@ -405,6 +415,15 @@ void DseamsCages::calculate() {
                                    : topo::matchLibraries(idxS, libraries_, 3).matched;
   }
   getPntrToComponent("nnamed")->set(named);
+
+  double nSig = 0.0;
+  if (!signatureSpec_.empty()) {
+    const auto sig = cage::Signature::parse(signatureSpec_);
+    const int depth = std::max(sig.maxRingSize(), 3);
+    const auto rings = primitive::ringNetwork(idxU, depth);
+    nSig = static_cast<double>(cage::findBySignature(rings, idxU, sig).size());
+  }
+  getPntrToComponent("ncages")->set(nSig);
 }
 
 } // namespace colvar
