@@ -54,6 +54,14 @@ def main():
     ).stdout
     (work / "ic.keys").write_text(lib)
     assert lib.startswith("# method"), lib[:60]
+    # a second library at two hops: the driver takes both, the deeper one
+    # names everything, and the count stays at every molecule
+    lib2 = subprocess.run(
+        [seams, "fingerprint", str(work / "frame.lammpstrj"), "--type", "1", "--graph", "knn",
+         "--hops", "2", "--emit-library", "Ic"],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    (work / "ic2.keys").write_text(lib2)
     with open(work / "frame.xyz", "w") as fh:
         for _ in range(2):
             fh.write(f"{n}\n{box:.6f} 0 0 0 {box:.6f} 0 0 0 {box:.6f}\n")
@@ -63,13 +71,17 @@ def main():
         "UNITS LENGTH=A\n"
         f"LOAD FILE={module}\n"
         f"ice: DSEAMS_CAGES ATOMS=1-{n} CUTOFF=3.5 CANDIDATE=5.5 K=4 LENGTH_SCALE=1.0 "
-        "HOPS=3 LIBRARY=ic.keys\n"
+        "HOPS=3 LIBRARY=ic.keys,ic2.keys\n"
         "PRINT ARG=ice.nice,ice.nclasses,ice.nnamed STRIDE=1 FILE=ICE FMT=%8.0f\n"
     )
-    subprocess.run(
+    driver = subprocess.run(
         [plumed, "driver", "--plumed", "plumed.dat", "--ixyz", "frame.xyz", "--length-units", "A"],
-        cwd=work, check=True, capture_output=True, text=True,
+        cwd=work, capture_output=True, text=True,
     )
+    if driver.returncode != 0:
+        sys.stderr.write(driver.stdout[-3000:])
+        sys.stderr.write(driver.stderr[-3000:])
+        raise SystemExit(f"plumed driver exited with {driver.returncode}")
     rows = [
         [float(x) for x in line.split()]
         for line in (work / "ICE").read_text().splitlines()

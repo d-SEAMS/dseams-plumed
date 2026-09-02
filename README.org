@@ -70,10 +70,15 @@ off the graph.
 
 =HOPS= (default 3) sets the bonds from the centre in each local topology key.
 
-=LIBRARY= names a topology key library from =seams fingerprint --emit-library=.
+=LIBRARY= names a topology key library from =seams fingerprint --emit-library=,
+or several, comma separated, built at different hop counts: each molecule
+takes the label of the deepest library that holds its key, so a molecule
+whose wide neighbourhood is disturbed still gets a name from its inner
+shells.
 
-Omit =LIBRARY= or =IONS= when unused. A library built at a different
-=HOPS= is an error.
+Omit =LIBRARY= or =IONS= when unused. The deepest library must be built
+at =HOPS=; two libraries at one hop count, or libraries that differ in
+colouring, are errors.
 
 * Components
 
@@ -125,7 +130,7 @@ key the library names. The same count names a hydrate framework or a
 high-pressure ice.
 
 #+begin_example
-hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys HOPS=3
+hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys,sI_sII_h2.keys HOPS=3
 PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
 #+end_example
 

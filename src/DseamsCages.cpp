@@ -69,7 +69,8 @@ class DseamsCages : public Colvar {
   double ionCutoff_ = 3.5;  // Angstrom, first water shell of an ion
   int hops_ = 3;
   bool haveLibrary_ = false;
-  topo::KeyLibrary library_;
+  topo::KeyLibrary library_;                 ///< the deepest library, at HOPS
+  std::vector<topo::KeyLibrary> libraries_;  ///< every library when several are given
   std::vector<std::string> names_;
 
 public:
@@ -110,7 +111,9 @@ void DseamsCages::registerKeywords(Keywords &keys) {
   keys.addOutputComponent("nionliq", "default", "ions with no cage molecule in the first shell");
   keys.add("optional", "LIBRARY",
            "a topology key library (seams fingerprint --emit-library) whose labels name "
-           "molecules by their rooted neighbourhood on the mutual graph");
+           "molecules by their rooted neighbourhood on the mutual graph; several files, "
+           "comma separated, built at different hop counts name each molecule by the "
+           "deepest that knows it");
   keys.add("compulsory", "HOPS", "3", "bonds from the centre in each local topology key");
   keys.addOutputComponent("nclasses", "default", "distinct local topology classes on the mutual graph");
   keys.addOutputComponent("nnamed", "default", "molecules whose local key the LIBRARY names");
@@ -134,16 +137,42 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   std::string libraryPath;
   parse("LIBRARY", libraryPath);
   if (!libraryPath.empty()) {
-    std::ifstream in(libraryPath);
-    if (!in) {
-      error("cannot read LIBRARY " + libraryPath);
+    std::size_t start = 0;
+    while (start <= libraryPath.size()) {
+      std::size_t comma = libraryPath.find(',', start);
+      if (comma == std::string::npos) {
+        comma = libraryPath.size();
+      }
+      const std::string path = libraryPath.substr(start, comma - start);
+      start = comma + 1;
+      if (path.empty()) {
+        continue;
+      }
+      std::ifstream in(path);
+      if (!in) {
+        error("cannot read LIBRARY " + path);
+      }
+      std::stringstream buf;
+      buf << in.rdbuf();
+      libraries_.push_back(topo::readLibrary(buf.str()));
     }
-    std::stringstream buf;
-    buf << in.rdbuf();
-    library_ = topo::readLibrary(buf.str());
+    if (libraries_.empty()) {
+      error("LIBRARY names no file");
+    }
+    std::sort(libraries_.begin(), libraries_.end(),
+              [](const topo::KeyLibrary &a, const topo::KeyLibrary &b) { return a.hops > b.hops; });
+    library_ = libraries_.front();
     haveLibrary_ = true;
     if (library_.hops != hops_) {
-      error("LIBRARY was built at a different HOPS");
+      error("the deepest LIBRARY was built at a different HOPS");
+    }
+    for (std::size_t i = 1; i < libraries_.size(); ++i) {
+      if (libraries_[i].hops == libraries_[i - 1].hops) {
+        error("two LIBRARY files share a hop count");
+      }
+      if (libraries_[i].coloured != library_.coloured) {
+        error("LIBRARY files differ in colouring");
+      }
     }
   }
   checkRead();
@@ -166,8 +195,10 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
                ionCutoff_);
   }
   if (haveLibrary_) {
-    log.printf("  key library with %zu keys (%s, %d hops)\n", library_.labelOf.size(),
-               library_.method.c_str(), library_.hops);
+    for (const auto &lib : libraries_) {
+      log.printf("  key library with %zu keys (%s, %d hops)\n", lib.labelOf.size(),
+                 lib.method.c_str(), lib.hops);
+    }
   }
   log.printf("  counts carry no derivatives; use them for PRINT, COMMITTOR and analysis\n");
 }
@@ -370,7 +401,8 @@ void DseamsCages::calculate() {
   getPntrToComponent("nclasses")->set(static_cast<double>(fp.classes.size()));
   int named = 0;
   if (haveLibrary_ && fp.method == library_.method) {
-    named = topo::matchLibrary(fp, library_).matched;
+    named = libraries_.size() == 1 ? topo::matchLibrary(fp, library_).matched
+                                   : topo::matchLibraries(idxS, libraries_, 3).matched;
   }
   getPntrToComponent("nnamed")->set(named);
 }
