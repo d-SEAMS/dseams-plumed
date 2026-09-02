@@ -1,0 +1,21 @@
+# d-SEAMS cage counts on the fly: the seeded topological ice score
+# (hexagonal and double-diamond cages), the largest ice cluster, the
+# CHILL+ counts, the ion classes of a brine, and the filled cages of a
+# hydrate, all as PLUMED components without derivatives (PRINT,
+# COMMITTOR, analysis).
+UNITS LENGTH=A
+LOAD FILE=libdseams_plumed.so
+
+# mW or TIP4P/2005 water: one oxygen per molecule in ATOMS
+ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 CANDIDATE=5.5 K=4 COMPLETE
+PRINT ARG=ice.nice,ice.nmax,ice.nclus,ice.nic,ice.nih,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
+COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
+
+# NaCl brine on TIP4P/2005 with the Madrid 2019 ions: ions stay off the
+# graph and are classed by their first water shell
+brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 COMPLETE
+PRINT ARG=brine.nice,brine.nmax,brine.nionice,brine.nionfront,brine.nionliq STRIDE=500 FILE=BRINE
+
+# methane hydrate: 5^12 cages by ring-size signature, methane carbons as GUESTS
+hyd: DSEAMS_CAGES ATOMS=1-2944 SIGNATURE=512 GUESTS=2945-3200 GUEST_RADIUS=4.0
+PRINT ARG=hyd.ncages,hyd.noccupied,hyd.nfreeguest STRIDE=500 FILE=HYDRATE
