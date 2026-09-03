@@ -183,6 +183,13 @@ lattice, emits its key library with =seams fingerprint --emit-library=,
 and checks that =nnamed= equals the molecule count and =nclasses= is
 one. Meson registers this test when a =seams= binary is on =PATH=.
 
+* Changelog
+
+Released versions live in [[file:CHANGELOG.md][CHANGELOG.md]] (Keep a Changelog).
+Unreleased notes are files under =changelog.d/=. Name each
+fragment =+slug.added.md= (or =changed=, =deprecated=, =removed=,
+=fixed=, =security=). The cut is =towncrier build --version X.Y.Z=.
+
 * Citation
 
 Cite the methods paper if you use this module.
