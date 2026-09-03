@@ -13,6 +13,7 @@
 #include <franzblau.hpp>
 #include <mol_sys.hpp>
 #include <neighbours.hpp>
+#include <site.hpp>
 #include <topo_fingerprint.hpp>
 
 #include <algorithm>
@@ -132,9 +133,12 @@ void DseamsCages::registerKeywords(Keywords &keys) {
            "SIGNATURE cages by the periodic centroid of each cage's vertices");
   keys.add("compulsory", "GUEST_RADIUS", "4.0",
            "a guest belongs to the nearest cage centre within this distance (A)");
-  keys.addOutputComponent("noccupied", "default", "SIGNATURE cages holding at least one guest");
-  keys.addOutputComponent("nmultiple", "default", "SIGNATURE cages holding more than one guest");
-  keys.addOutputComponent("nfreeguest", "default", "guests in no SIGNATURE cage");
+  keys.addOutputComponent("noccupied", "default", "SIGNATURE cages holding at least one guest (radius)");
+  keys.addOutputComponent("nmultiple", "default", "SIGNATURE cages holding more than one guest (radius)");
+  keys.addOutputComponent("nfreeguest", "default", "guests in no SIGNATURE cage (radius)");
+  keys.addOutputComponent("noccupied_inside", "default", "SIGNATURE cages holding a guest by ray parity");
+  keys.addOutputComponent("nmultiple_inside", "default", "SIGNATURE cages holding more than one guest by ray parity");
+  keys.addOutputComponent("nfreeguest_inside", "default", "guests outside every SIGNATURE cage by ray parity");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -208,7 +212,8 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   names_ = {"nice", "nmax", "nclus", "nic", "nih", "nmixed",
             "chillice", "chillmax", "chillinterfacial", "sixrings",
             "nionice", "nionfront", "nionliq", "nclasses", "nnamed",
-            "ncages", "noccupied", "nmultiple", "nfreeguest"};
+            "ncages", "noccupied", "nmultiple", "nfreeguest",
+            "noccupied_inside", "nmultiple_inside", "nfreeguest_inside"};
   for (const auto &n : names_) {
     addComponent(n);
     componentIsNotPeriodic(n);
@@ -442,6 +447,9 @@ void DseamsCages::calculate() {
   double nOccupied = 0.0;
   double nMultiple = 0.0;
   double nFreeGuest = 0.0;
+  double nOccupiedIn = 0.0;
+  double nMultipleIn = 0.0;
+  double nFreeGuestIn = 0.0;
   if (!signatureSpec_.empty()) {
     const auto sig = cage::Signature::parse(signatureSpec_);
     const int depth = std::max(sig.maxRingSize(), 3);
@@ -484,12 +492,50 @@ void DseamsCages::calculate() {
         nOccupied += n > 0 ? 1.0 : 0.0;
         nMultiple += n > 1 ? 1.0 : 0.0;
       }
+      molSys::PointCloud<molSys::Point<double>, double> occCloud = cloud;
+      std::vector<int> guestIdx;
+      guestIdx.reserve(static_cast<std::size_t>(nGuest_));
+      for (int g = 0; g < nGuest_; ++g) {
+        const Vector gp = getPosition(nop + nIon_ + g);
+        molSys::Point<double> pt;
+        pt.type = 2;
+        pt.atomID = occCloud.nop + 1;
+        pt.molID = occCloud.nop + 1;
+        pt.x = gp[0] * lengthScale_;
+        pt.y = gp[1] * lengthScale_;
+        pt.z = gp[2] * lengthScale_;
+        occCloud.idIndexMap[pt.atomID] = occCloud.nop;
+        occCloud.pts.push_back(pt);
+        guestIdx.push_back(occCloud.nop);
+        occCloud.nop += 1;
+      }
+      std::vector<std::vector<int>> cages;
+      std::vector<std::vector<std::vector<int>>> faces;
+      cages.reserve(found.size());
+      faces.reserve(found.size());
+      for (const auto &c : found) {
+        cages.push_back(c.vertices);
+        std::vector<std::vector<int>> cageFaces;
+        for (int fi : c.faces) {
+          if (fi >= 0 && static_cast<std::size_t>(fi) < rings.size()) {
+            cageFaces.push_back(rings[static_cast<std::size_t>(fi)]);
+          }
+        }
+        faces.push_back(std::move(cageFaces));
+      }
+      const auto inside = site::guestOccupancyInside(occCloud, cages, faces, guestIdx);
+      nOccupiedIn = static_cast<double>(inside.occupied);
+      nMultipleIn = static_cast<double>(inside.multiply);
+      nFreeGuestIn = static_cast<double>(inside.free);
     }
   }
   getPntrToComponent("ncages")->set(nSig);
   getPntrToComponent("noccupied")->set(nOccupied);
   getPntrToComponent("nmultiple")->set(nMultiple);
   getPntrToComponent("nfreeguest")->set(nFreeGuest);
+  getPntrToComponent("noccupied_inside")->set(nOccupiedIn);
+  getPntrToComponent("nmultiple_inside")->set(nMultipleIn);
+  getPntrToComponent("nfreeguest_inside")->set(nFreeGuestIn);
 }
 
 } // namespace colvar
