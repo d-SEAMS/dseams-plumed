@@ -30,21 +30,29 @@ message('plumed include dir: ' + plumed_inc)
 # enough. GROMACS dlopens the kernel locally, and the module then has to
 # name libplumedKernel itself.
 plumed_kernel = meson.get_compiler('cpp').find_library('plumedKernel', required: true)
+# The smooth fraction uses the same OpenMP width as PLUMED (NUM_THREADS).
+omp = dependency('openmp', required: true)
 mod = shared_module('dseams_plumed',
   'src/DseamsCages.cpp',
   'src/DseamsChill.cpp',
   'src/DseamsRings.cpp',
   'src/DseamsSmooth.cpp',
-  dependencies: [yds_dep, plumed_kernel],
+  dependencies: [yds_dep, plumed_kernel, omp],
   cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN'],
   name_prefix: 'lib',
   install: true,
   install_dir: get_option('libdir'))
 
 offline = executable('dseams_offline', 'tests/offline_frame.cpp',
-  dependencies: [yds_dep],
+  dependencies: [yds_dep, omp],
   include_directories: include_directories('src'),
   install: false)
+
+thread_bits = executable('dseams_thread_bits', 'tests/thread_bits.cpp',
+  dependencies: [omp],
+  include_directories: include_directories('src'),
+  install: false)
+test('thread_bits', thread_bits, timeout: 120)
 
 pymod = import('python').find_installation('python3', required: false)
 if pymod.found()

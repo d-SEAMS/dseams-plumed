@@ -202,204 +202,385 @@ struct Qacc {
   }
 };
 
-struct Edge {
-  int i = 0;
-  int j = 0;
-  double dx = 0.0;
-  double dy = 0.0;
-  double dz = 0.0;
-  double sigma = 0.0;
-  double dsdr = 0.0;
-  double c = 0.0;
-  double s = 0.0;
-  double dsdc = 0.0;
-  double re[7] = {};
-  double im[7] = {};
-};
-
 } // namespace smooth_detail
 
-// Reused scratch for one group of atoms. evaluate() does not allocate
-// after the first call of a given size, apart from growth of the edge list.
+// Reused scratch for one group of atoms. evaluate() keeps its buffers
+// between calls. nthreads is PLUMED's NUM_THREADS. Every sum that a
+// molecule owns walks that molecule's bonds in pair-list order, and the
+// fraction and the virial are left folds, so one thread and many threads
+// write the same bits.
 class SmoothChill {
 public:
   double fraction = 0.0;
   std::vector<std::array<double, 3>> grad;
   double virial[3][3] = {};
 
-  void evaluate(int n, const std::vector<PairBond> &pairs, const SmoothParams &par, bool wantDeriv) {
+  void evaluate(int n, const std::vector<PairBond> &pairs, const SmoothParams &par, bool wantDeriv,
+                int nthreads = 1) {
     using namespace smooth_detail;
     ensure(n);
     fraction = 0.0;
     if (n <= 0) {
       return;
     }
-    edges_.clear();
-    ygrad_.clear();
-    if (edges_.capacity() < pairs.size() * 2) {
-      edges_.reserve(pairs.size() * 2);
-    }
-    if (wantDeriv && ygrad_.capacity() < pairs.size() * 2) {
-      ygrad_.reserve(pairs.size() * 2);
-    }
-    for (const auto &p : pairs) {
-      pushPair(p.i, p.j, p.dx, p.dy, p.dz, par, wantDeriv);
-    }
-    std::fill(coord_.begin(), coord_.end(), 0.0);
-    for (auto &u : U_) {
-      u.clear();
-    }
-    for (const auto &e : edges_) {
-      coord_[static_cast<std::size_t>(e.i)] += e.sigma;
-      auto &u = U_[static_cast<std::size_t>(e.i)];
-      for (int m = 0; m < 7; m++) {
-        u.re[m] += e.sigma * e.re[m];
-        u.im[m] += e.sigma * e.im[m];
+    const int nt = std::max(nthreads, 1);
+    const int np = static_cast<int>(pairs.size());
+    slot_.resize(static_cast<std::size_t>(np));
+    keep_.resize(static_cast<std::size_t>(np));
+    const SmoothParams parm = par;
+
+#pragma omp parallel num_threads(nt)
+    {
+#pragma omp for schedule(static)
+      for (int p = 0; p < np; p++) {
+        fillSlot(pairs[static_cast<std::size_t>(p)], slot_[static_cast<std::size_t>(p)],
+                 keep_[static_cast<std::size_t>(p)], parm, wantDeriv);
+      }
+#pragma omp single
+      { compact(n); }
+#pragma omp for schedule(static)
+      for (int a = 0; a < n; a++) {
+        coord_[static_cast<std::size_t>(a)] = 0.0;
+        U_[static_cast<std::size_t>(a)].clear();
+        for (int k = off_[static_cast<std::size_t>(a)]; k < off_[static_cast<std::size_t>(a + 1)]; k++) {
+          const Bond &b = bondAt(adj_[static_cast<std::size_t>(k)]);
+          const double sign = (a == b.i) ? 1.0 : -1.0;
+          coord_[static_cast<std::size_t>(a)] += b.sigma;
+          auto &u = U_[static_cast<std::size_t>(a)];
+          for (int m = 0; m < 7; m++) {
+            const double yr = sign * b.re[m];
+            const double yi = sign * b.im[m];
+            u.re[m] += b.sigma * yr;
+            u.im[m] += b.sigma * yi;
+          }
+        }
+      }
+#pragma omp for schedule(static)
+      for (int a = 0; a < n; a++) {
+        const double z = coord_[static_cast<std::size_t>(a)];
+        auto &q = Qlm_[static_cast<std::size_t>(a)];
+        q.clear();
+        norm2_[static_cast<std::size_t>(a)] = 0.0;
+        if (z <= 0.0) {
+          continue;
+        }
+        const auto &u = U_[static_cast<std::size_t>(a)];
+        double n2 = 0.0;
+        for (int m = 0; m < 7; m++) {
+          q.re[m] = u.re[m] / z;
+          q.im[m] = u.im[m] / z;
+          n2 += q.re[m] * q.re[m] + q.im[m] * q.im[m];
+        }
+        norm2_[static_cast<std::size_t>(a)] = n2;
+      }
+#pragma omp for schedule(static)
+      for (int p = 0; p < nb_; p++) {
+        bondCorrelation(bondAt(p), parm, wantDeriv);
+      }
+#pragma omp for schedule(static)
+      for (int a = 0; a < n; a++) {
+        double ns = 0.0;
+        for (int k = off_[static_cast<std::size_t>(a)]; k < off_[static_cast<std::size_t>(a + 1)]; k++) {
+          const Bond &b = bondAt(adj_[static_cast<std::size_t>(k)]);
+          if (b.live) {
+            ns += b.sigma * b.s;
+          }
+        }
+        ns_[static_cast<std::size_t>(a)] = ns;
       }
     }
-    std::fill(norm2_.begin(), norm2_.end(), 0.0);
-    for (int i = 0; i < n; i++) {
-      const double z = coord_[static_cast<std::size_t>(i)];
-      auto &q = Qlm_[static_cast<std::size_t>(i)];
-      q.clear();
-      if (z <= 0.0) {
-        continue;
-      }
-      const auto &u = U_[static_cast<std::size_t>(i)];
-      double n2 = 0.0;
-      for (int m = 0; m < 7; m++) {
-        q.re[m] = u.re[m] / z;
-        q.im[m] = u.im[m] / z;
-        n2 += q.re[m] * q.re[m] + q.im[m] * q.im[m];
-      }
-      norm2_[static_cast<std::size_t>(i)] = n2;
-    }
-    std::fill(ns_.begin(), ns_.end(), 0.0);
-    for (auto &e : edges_) {
-      const double ni2 = norm2_[static_cast<std::size_t>(e.i)];
-      const double nj2 = norm2_[static_cast<std::size_t>(e.j)];
-      if (ni2 < 1e-24 || nj2 < 1e-24) {
-        e.c = 0.0;
-        e.s = 0.0;
-        e.dsdc = 0.0;
-        continue;
-      }
-      const auto &qi = Qlm_[static_cast<std::size_t>(e.i)];
-      const auto &qj = Qlm_[static_cast<std::size_t>(e.j)];
-      double dot = 0.0;
-      for (int m = 0; m < 7; m++) {
-        dot += qi.re[m] * qj.re[m] + qi.im[m] * qj.im[m];
-      }
-      e.c = dot / std::sqrt(ni2 * nj2);
-      const double x = (e.c - par.staggered) / par.width;
-      e.s = sigmoid(-x);
-      e.dsdc = wantDeriv ? -e.s * (1.0 - e.s) / par.width : 0.0;
-      ns_[static_cast<std::size_t>(e.i)] += e.sigma * e.s;
-    }
+
     double sum = 0.0;
     for (int i = 0; i < n; i++) {
-      const double x = (ns_[static_cast<std::size_t>(i)] - par.mid) / par.beta;
+      const double x = (ns_[static_cast<std::size_t>(i)] - parm.mid) / parm.beta;
       const double f = sigmoid(x);
-      dfdn_[static_cast<std::size_t>(i)] = wantDeriv ? f * (1.0 - f) / par.beta : 0.0;
+      dfdn_[static_cast<std::size_t>(i)] = wantDeriv ? f * (1.0 - f) / parm.beta : 0.0;
       sum += f;
     }
     fraction = sum / static_cast<double>(n);
     if (!wantDeriv) {
       return;
     }
-    for (auto &g : grad) {
-      g = {0.0, 0.0, 0.0};
+    const double invN = 1.0 / static_cast<double>(n);
+    gFwd_.resize(static_cast<std::size_t>(nb_));
+    gRev_.resize(static_cast<std::size_t>(nb_));
+
+#pragma omp parallel num_threads(nt)
+    {
+#pragma omp for schedule(static)
+      for (int a = 0; a < n; a++) {
+        auto &gq = gQ_[static_cast<std::size_t>(a)];
+        gq.clear();
+        const double n2a = norm2_[static_cast<std::size_t>(a)];
+        if (!(n2a >= 1e-24)) {
+          continue;
+        }
+        const auto &qa = Qlm_[static_cast<std::size_t>(a)];
+        for (int k = off_[static_cast<std::size_t>(a)]; k < off_[static_cast<std::size_t>(a + 1)]; k++) {
+          const Bond &b = bondAt(adj_[static_cast<std::size_t>(k)]);
+          if (!b.live) {
+            continue;
+          }
+          const int other = (a == b.i) ? b.j : b.i;
+          const double n2b = norm2_[static_cast<std::size_t>(other)];
+          if (n2b < 1e-24) {
+            continue;
+          }
+          const double scale = 1.0 / std::sqrt(n2a * n2b);
+          const auto &qo = Qlm_[static_cast<std::size_t>(other)];
+          const double gc1 = invN * dfdn_[static_cast<std::size_t>(b.i)] * b.sigma * b.dsdc;
+          const double gc2 = invN * dfdn_[static_cast<std::size_t>(b.j)] * b.sigma * b.dsdc;
+          addGQ(gq, gc1, qa, qo, n2a, scale, b.c);
+          addGQ(gq, gc2, qa, qo, n2a, scale, b.c);
+        }
+      }
+#pragma omp for schedule(static)
+      for (int a = 0; a < n; a++) {
+        const double z = coord_[static_cast<std::size_t>(a)];
+        auto &gu = gU_[static_cast<std::size_t>(a)];
+        gu.clear();
+        gZ_[static_cast<std::size_t>(a)] = 0.0;
+        if (z <= 0.0) {
+          continue;
+        }
+        const auto &gq = gQ_[static_cast<std::size_t>(a)];
+        const auto &q = Qlm_[static_cast<std::size_t>(a)];
+        double dot = 0.0;
+        for (int m = 0; m < 7; m++) {
+          gu.re[m] = gq.re[m] / z;
+          gu.im[m] = gq.im[m] / z;
+          dot += gq.re[m] * q.re[m] + gq.im[m] * q.im[m];
+        }
+        gZ_[static_cast<std::size_t>(a)] = -dot / z;
+      }
+#pragma omp for schedule(static)
+      for (int p = 0; p < nb_; p++) {
+        forceOnBond(bondAt(p), invN, gFwd_[static_cast<std::size_t>(p)],
+                    gRev_[static_cast<std::size_t>(p)]);
+      }
+#pragma omp for schedule(static)
+      for (int a = 0; a < n; a++) {
+        auto &ga = grad[static_cast<std::size_t>(a)];
+        ga = {0.0, 0.0, 0.0};
+        for (int k = off_[static_cast<std::size_t>(a)]; k < off_[static_cast<std::size_t>(a + 1)]; k++) {
+          const int p = adj_[static_cast<std::size_t>(k)];
+          const Bond &b = bondAt(p);
+          const auto &gf = gFwd_[static_cast<std::size_t>(p)];
+          const auto &gr = gRev_[static_cast<std::size_t>(p)];
+          if (a == b.i) {
+            ga[0] -= gf[0];
+            ga[1] -= gf[1];
+            ga[2] -= gf[2];
+            ga[0] += gr[0];
+            ga[1] += gr[1];
+            ga[2] += gr[2];
+          } else {
+            ga[0] += gf[0];
+            ga[1] += gf[1];
+            ga[2] += gf[2];
+            ga[0] -= gr[0];
+            ga[1] -= gr[1];
+            ga[2] -= gr[2];
+          }
+        }
+      }
     }
+
     for (int a = 0; a < 3; a++) {
       for (int b = 0; b < 3; b++) {
         virial[a][b] = 0.0;
       }
     }
-    for (auto &g : gQ_) {
-      g.clear();
-    }
-    const double invN = 1.0 / static_cast<double>(n);
-    for (const auto &e : edges_) {
-      const double gc = invN * dfdn_[static_cast<std::size_t>(e.i)] * e.sigma * e.dsdc;
-      if (gc == 0.0) {
-        continue;
-      }
-      const double ni2 = norm2_[static_cast<std::size_t>(e.i)];
-      const double nj2 = norm2_[static_cast<std::size_t>(e.j)];
-      if (ni2 < 1e-24 || nj2 < 1e-24) {
-        continue;
-      }
-      const double scale = 1.0 / std::sqrt(ni2 * nj2);
-      const auto &qi = Qlm_[static_cast<std::size_t>(e.i)];
-      const auto &qj = Qlm_[static_cast<std::size_t>(e.j)];
-      auto &gi = gQ_[static_cast<std::size_t>(e.i)];
-      auto &gj = gQ_[static_cast<std::size_t>(e.j)];
-      for (int m = 0; m < 7; m++) {
-        gi.re[m] += gc * (qj.re[m] * scale - e.c * qi.re[m] / ni2);
-        gi.im[m] += gc * (qj.im[m] * scale - e.c * qi.im[m] / ni2);
-        gj.re[m] += gc * (qi.re[m] * scale - e.c * qj.re[m] / nj2);
-        gj.im[m] += gc * (qi.im[m] * scale - e.c * qj.im[m] / nj2);
-      }
-    }
-    std::fill(gZ_.begin(), gZ_.end(), 0.0);
-    for (int i = 0; i < n; i++) {
-      const double z = coord_[static_cast<std::size_t>(i)];
-      auto &gu = gU_[static_cast<std::size_t>(i)];
-      gu.clear();
-      if (z <= 0.0) {
-        continue;
-      }
-      const auto &gq = gQ_[static_cast<std::size_t>(i)];
-      const auto &q = Qlm_[static_cast<std::size_t>(i)];
-      double dot = 0.0;
-      for (int m = 0; m < 7; m++) {
-        gu.re[m] = gq.re[m] / z;
-        gu.im[m] = gq.im[m] / z;
-        dot += gq.re[m] * q.re[m] + gq.im[m] * q.im[m];
-      }
-      gZ_[static_cast<std::size_t>(i)] = -dot / z;
-    }
-    for (const auto &e : edges_) {
-      const double gns = invN * dfdn_[static_cast<std::size_t>(e.i)];
-      double gsig = gns * e.s + gZ_[static_cast<std::size_t>(e.i)];
-      const auto &gu = gU_[static_cast<std::size_t>(e.i)];
-      for (int m = 0; m < 7; m++) {
-        gsig += gu.re[m] * e.re[m] + gu.im[m] * e.im[m];
-      }
-      double g[3] = {0.0, 0.0, 0.0};
-      const double r = std::sqrt(e.dx * e.dx + e.dy * e.dy + e.dz * e.dz);
-      if (r > 1e-8) {
-        const double gr = gsig * e.dsdr;
-        g[0] += gr * e.dx / r;
-        g[1] += gr * e.dy / r;
-        g[2] += gr * e.dz / r;
-      }
-      const auto &yy = ygrad_[static_cast<std::size_t>(&e - edges_.data())];
-      for (int m = 0; m < 7; m++) {
-        const double gyRe = gu.re[m] * e.sigma;
-        const double gyIm = gu.im[m] * e.sigma;
-        for (int k = 0; k < 3; k++) {
-          g[k] += gyRe * yy.dre[m][k] + gyIm * yy.dim[m][k];
+    for (int p = 0; p < nb_; p++) {
+      const Bond &b = bondAt(p);
+      const auto &gf = gFwd_[static_cast<std::size_t>(p)];
+      const auto &gr = gRev_[static_cast<std::size_t>(p)];
+      const double d[3] = {b.dx, b.dy, b.dz};
+      for (int a = 0; a < 3; a++) {
+        for (int c = 0; c < 3; c++) {
+          virial[a][c] -= d[a] * gf[c];
         }
       }
-      auto &gi = grad[static_cast<std::size_t>(e.i)];
-      auto &gj = grad[static_cast<std::size_t>(e.j)];
-      gi[0] -= g[0];
-      gi[1] -= g[1];
-      gi[2] -= g[2];
-      gj[0] += g[0];
-      gj[1] += g[1];
-      gj[2] += g[2];
-      const double delta[3] = {e.dx, e.dy, e.dz};
       for (int a = 0; a < 3; a++) {
-        for (int b = 0; b < 3; b++) {
-          virial[a][b] -= delta[a] * g[b];
+        for (int c = 0; c < 3; c++) {
+          virial[a][c] -= (-d[a]) * gr[c];
         }
       }
     }
   }
 
 private:
+  struct Bond {
+    int i = 0;
+    int j = 0;
+    char live = 0;
+    double dx = 0.0;
+    double dy = 0.0;
+    double dz = 0.0;
+    double sigma = 0.0;
+    double dsdr = 0.0;
+    double c = 0.0;
+    double s = 0.0;
+    double dsdc = 0.0;
+    double re[7] = {};
+    double im[7] = {};
+    double dre[7][3] = {};
+    double dim[7][3] = {};
+  };
+
+  void fillSlot(const PairBond &p, Bond &b, char &keep, const SmoothParams &par, bool wantDeriv) const {
+    using namespace smooth_detail;
+    keep = 0;
+    const double dx = p.dx;
+    const double dy = p.dy;
+    const double dz = p.dz;
+    const double r = std::sqrt(dx * dx + dy * dy + dz * dz);
+    if (!(r > 1e-8) || r >= par.dmax) {
+      return;
+    }
+    double dsdr = 0.0;
+    const double sigma = cubicSwitch(r, par.d0, par.dmax, dsdr);
+    if (sigma <= 0.0 && dsdr == 0.0) {
+      return;
+    }
+    keep = 1;
+    b.i = p.i;
+    b.j = p.j;
+    b.live = 0;
+    b.dx = dx;
+    b.dy = dy;
+    b.dz = dz;
+    b.sigma = sigma;
+    b.dsdr = dsdr;
+    b.c = 0.0;
+    b.s = 0.0;
+    b.dsdc = 0.0;
+    if (wantDeriv) {
+      Ylm3 y;
+      ylm3ValueGrad(dx, dy, dz, y);
+      for (int m = 0; m < 7; m++) {
+        b.re[m] = y.re[m];
+        b.im[m] = y.im[m];
+        for (int k = 0; k < 3; k++) {
+          b.dre[m][k] = y.dre[m][k];
+          b.dim[m][k] = y.dim[m][k];
+        }
+      }
+    } else {
+      ylm3Value(dx, dy, dz, b.re, b.im);
+    }
+  }
+
+  Bond &bondAt(int p) { return slot_[static_cast<std::size_t>(kept_[static_cast<std::size_t>(p)])]; }
+  const Bond &bondAt(int p) const {
+    return slot_[static_cast<std::size_t>(kept_[static_cast<std::size_t>(p)])];
+  }
+
+  void compact(int n) {
+    kept_.clear();
+    if (kept_.capacity() < slot_.size()) {
+      kept_.reserve(slot_.size());
+    }
+    for (std::size_t p = 0; p < slot_.size(); p++) {
+      if (keep_[p]) {
+        kept_.push_back(static_cast<int>(p));
+      }
+    }
+    nb_ = static_cast<int>(kept_.size());
+    counts_.assign(static_cast<std::size_t>(n), 0);
+    for (int p = 0; p < nb_; p++) {
+      const Bond &b = bondAt(p);
+      counts_[static_cast<std::size_t>(b.i)]++;
+      counts_[static_cast<std::size_t>(b.j)]++;
+    }
+    off_.resize(static_cast<std::size_t>(n + 1));
+    off_[0] = 0;
+    for (int a = 0; a < n; a++) {
+      off_[static_cast<std::size_t>(a + 1)] =
+          off_[static_cast<std::size_t>(a)] + counts_[static_cast<std::size_t>(a)];
+    }
+    adj_.resize(static_cast<std::size_t>(off_[static_cast<std::size_t>(n)]));
+    std::vector<int> mark(off_.begin(), off_.end() - 1);
+    for (int p = 0; p < nb_; p++) {
+      const Bond &b = bondAt(p);
+      adj_[static_cast<std::size_t>(mark[static_cast<std::size_t>(b.i)]++)] = p;
+      adj_[static_cast<std::size_t>(mark[static_cast<std::size_t>(b.j)]++)] = p;
+    }
+  }
+
+  void bondCorrelation(Bond &b, const SmoothParams &par, bool wantDeriv) const {
+    const double ni2 = norm2_[static_cast<std::size_t>(b.i)];
+    const double nj2 = norm2_[static_cast<std::size_t>(b.j)];
+    if (ni2 < 1e-24 || nj2 < 1e-24) {
+      b.live = 0;
+      b.c = 0.0;
+      b.s = 0.0;
+      b.dsdc = 0.0;
+      return;
+    }
+    const auto &qi = Qlm_[static_cast<std::size_t>(b.i)];
+    const auto &qj = Qlm_[static_cast<std::size_t>(b.j)];
+    double dot = 0.0;
+    for (int m = 0; m < 7; m++) {
+      dot += qi.re[m] * qj.re[m] + qi.im[m] * qj.im[m];
+    }
+    b.c = dot / std::sqrt(ni2 * nj2);
+    const double x = (b.c - par.staggered) / par.width;
+    b.s = smooth_detail::sigmoid(-x);
+    b.dsdc = wantDeriv ? -b.s * (1.0 - b.s) / par.width : 0.0;
+    b.live = 1;
+  }
+
+  static void addGQ(smooth_detail::Qacc &g, double gc, const smooth_detail::Qacc &qSelf,
+                    const smooth_detail::Qacc &qOther, double n2self, double scale, double c) {
+    if (gc == 0.0) {
+      return;
+    }
+    for (int m = 0; m < 7; m++) {
+      g.re[m] += gc * (qOther.re[m] * scale - c * qSelf.re[m] / n2self);
+      g.im[m] += gc * (qOther.im[m] * scale - c * qSelf.im[m] / n2self);
+    }
+  }
+
+  void forceOnBond(const Bond &b, double invN, std::array<double, 3> &gf, std::array<double, 3> &gr) const {
+    directedForce(b, b.i, b.re, b.im, 1.0, invN, gf);
+    double nre[7];
+    double nim[7];
+    for (int m = 0; m < 7; m++) {
+      nre[m] = -b.re[m];
+      nim[m] = -b.im[m];
+    }
+    directedForce(b, b.j, nre, nim, -1.0, invN, gr);
+  }
+
+  // sign is +1 along (dx, dy, dz) and -1 along the opposite bond. The
+  // Cartesian gradient of Y_3m is the same in both directions because l = 3
+  // is odd: dY(-r)/d(-r) = dY(r)/dr.
+  void directedForce(const Bond &b, int central, const double re[7], const double im[7], double sign,
+                     double invN, std::array<double, 3> &g) const {
+    const double gns = invN * dfdn_[static_cast<std::size_t>(central)];
+    double gsig = gns * b.s + gZ_[static_cast<std::size_t>(central)];
+    const auto &gu = gU_[static_cast<std::size_t>(central)];
+    for (int m = 0; m < 7; m++) {
+      gsig += gu.re[m] * re[m] + gu.im[m] * im[m];
+    }
+    g = {0.0, 0.0, 0.0};
+    const double r = std::sqrt(b.dx * b.dx + b.dy * b.dy + b.dz * b.dz);
+    if (r > 1e-8) {
+      const double gr = gsig * b.dsdr;
+      g[0] += gr * (sign * b.dx) / r;
+      g[1] += gr * (sign * b.dy) / r;
+      g[2] += gr * (sign * b.dz) / r;
+    }
+    for (int m = 0; m < 7; m++) {
+      const double gyRe = gu.re[m] * b.sigma;
+      const double gyIm = gu.im[m] * b.sigma;
+      for (int k = 0; k < 3; k++) {
+        g[k] += gyRe * b.dre[m][k] + gyIm * b.dim[m][k];
+      }
+    }
+  }
+
   void ensure(int n) {
     if (n == n_) {
       return;
@@ -418,58 +599,14 @@ private:
     grad.assign(nn, {0.0, 0.0, 0.0});
   }
 
-  // One Y_3m for the bond. l = 3 is odd, so the opposite direction is
-  // the negated harmonic and the same Cartesian gradient.
-  void pushPair(int i, int j, double dx, double dy, double dz, const SmoothParams &par,
-                bool wantDeriv) {
-    const double r = std::sqrt(dx * dx + dy * dy + dz * dz);
-    if (!(r > 1e-8) || r >= par.dmax) {
-      return;
-    }
-    double dsdr = 0.0;
-    const double sigma = smooth_detail::cubicSwitch(r, par.d0, par.dmax, dsdr);
-    if (sigma <= 0.0 && dsdr == 0.0) {
-      return;
-    }
-    smooth_detail::Edge fwd;
-    fwd.i = i;
-    fwd.j = j;
-    fwd.dx = dx;
-    fwd.dy = dy;
-    fwd.dz = dz;
-    fwd.sigma = sigma;
-    fwd.dsdr = dsdr;
-    if (wantDeriv) {
-      smooth_detail::Ylm3 y;
-      smooth_detail::ylm3ValueGrad(dx, dy, dz, y);
-      for (int m = 0; m < 7; m++) {
-        fwd.re[m] = y.re[m];
-        fwd.im[m] = y.im[m];
-      }
-      ygrad_.push_back(y);
-    } else {
-      smooth_detail::ylm3Value(dx, dy, dz, fwd.re, fwd.im);
-    }
-    edges_.push_back(fwd);
-    smooth_detail::Edge rev = fwd;
-    rev.i = j;
-    rev.j = i;
-    rev.dx = -dx;
-    rev.dy = -dy;
-    rev.dz = -dz;
-    for (int m = 0; m < 7; m++) {
-      rev.re[m] = -fwd.re[m];
-      rev.im[m] = -fwd.im[m];
-    }
-    edges_.push_back(rev);
-    if (wantDeriv) {
-      ygrad_.push_back(ygrad_.back());
-    }
-  }
-
   int n_ = -1;
-  std::vector<smooth_detail::Edge> edges_;
-  std::vector<smooth_detail::Ylm3> ygrad_;
+  int nb_ = 0;
+  std::vector<Bond> slot_;
+  std::vector<char> keep_;
+  std::vector<int> kept_;
+  std::vector<int> counts_;
+  std::vector<int> off_;
+  std::vector<int> adj_;
   std::vector<double> coord_;
   std::vector<double> norm2_;
   std::vector<double> ns_;
@@ -479,6 +616,8 @@ private:
   std::vector<smooth_detail::Qacc> Qlm_;
   std::vector<smooth_detail::Qacc> gQ_;
   std::vector<smooth_detail::Qacc> gU_;
+  std::vector<std::array<double, 3>> gFwd_;
+  std::vector<std::array<double, 3>> gRev_;
 };
 
 inline double minimumImage(double d, double length) {

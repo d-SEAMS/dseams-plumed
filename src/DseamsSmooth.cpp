@@ -5,6 +5,7 @@
 */
 #include "colvar/Colvar.h"
 #include "core/ActionRegister.h"
+#include "tools/OpenMP.h"
 
 #include "smooth_chill.hpp"
 
@@ -38,6 +39,9 @@ and kept until an atom has moved by half that skin or the box has changed.
 Pair vectors are refreshed from the minimum image every step, so the force
 and the virial see the current box. Y_3m and its Cartesian gradient are
 closed form, and the scratch used by the sum is kept between steps.
+The loops run on PLUMED's NUM_THREADS. Each molecule's sum follows the
+pair list, and the fraction and the virial are left folds, so the bits
+do not depend on the thread count.
 
 On an ideal ice Ic lattice, with D_0 above the hydrogen-bond length and
 D_MAX below the second shell, the shell is the four nearest neighbours and
@@ -71,6 +75,12 @@ class DseamsSmooth : public Colvar {
   std::vector<int> listJ_;
   std::vector<int> cellHead_;
   std::vector<int> cellNext_;
+  std::vector<int> candI_;
+  std::vector<int> candJ_;
+  std::vector<double> candX_;
+  std::vector<double> candY_;
+  std::vector<double> candZ_;
+  std::vector<char> candKeep_;
   std::vector<dseams::PairBond> pairs_;
   dseams::SmoothChill engine_;
 
@@ -134,6 +144,9 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   log.printf("  Verlet neighbour list with skin %.2f A, rebuilt when an atom moves "
              "by half of that; Y_3m gradient is analytic\n",
              skin_);
+  log.printf("  OpenMP width is PLUMED NUM_THREADS (currently %u). One thread and many "
+             "threads evaluate the same value and the same forces\n",
+             OpenMP::getNumThreads());
   log.printf("  smooth surrogate of CHILL+ with derivatives; not the published label. "
              "Monitor the label with DSEAMS_CHILL\n");
 }
@@ -188,21 +201,20 @@ void DseamsSmooth::rebuildList(const Tensor &box) {
   }
   listI_.clear();
   listJ_.clear();
+  candI_.clear();
+  candJ_.clear();
   const bool ortho = std::abs(listBox_[1]) < 1e-8 && std::abs(listBox_[2]) < 1e-8 &&
                      std::abs(listBox_[3]) < 1e-8 && std::abs(listBox_[5]) < 1e-8 &&
                      std::abs(listBox_[6]) < 1e-8 && std::abs(listBox_[7]) < 1e-8;
   const bool cells = ortho && lx > 3.0 * cut && ly > 3.0 * cut && lz > 3.0 * cut;
-  auto accept = [&](int i, int j) {
-    const Vector d = pbcDistance(getPosition(i), getPosition(j)) * scale;
-    if (d.modulo2() < cut2) {
-      listI_.push_back(i);
-      listJ_.push_back(j);
-    }
+  auto consider = [&](int i, int j) {
+    candI_.push_back(i);
+    candJ_.push_back(j);
   };
   if (!cells) {
     for (int i = 0; i < nAtom_; i++) {
       for (int j = i + 1; j < nAtom_; j++) {
-        accept(i, j);
+        consider(i, j);
       }
     }
   } else {
@@ -263,12 +275,35 @@ void DseamsSmooth::rebuildList(const Tensor &box) {
                 if (o != 0 && a == b) {
                   continue;
                 }
-                accept(a, b);
+                consider(a, b);
               }
             }
           }
         }
       }
+    }
+  }
+  const int nc = static_cast<int>(candI_.size());
+  candX_.resize(static_cast<std::size_t>(nc));
+  candY_.resize(static_cast<std::size_t>(nc));
+  candZ_.resize(static_cast<std::size_t>(nc));
+  candKeep_.resize(static_cast<std::size_t>(nc));
+  const int nt = std::max(1, static_cast<int>(OpenMP::getNumThreads()));
+#pragma omp parallel for num_threads(nt) schedule(static)
+  for (int n = 0; n < nc; n++) {
+    const Vector d =
+        pbcDistance(getPosition(candI_[static_cast<std::size_t>(n)]),
+                    getPosition(candJ_[static_cast<std::size_t>(n)])) *
+        scale;
+    candX_[static_cast<std::size_t>(n)] = d[0];
+    candY_[static_cast<std::size_t>(n)] = d[1];
+    candZ_[static_cast<std::size_t>(n)] = d[2];
+    candKeep_[static_cast<std::size_t>(n)] = d.modulo2() < cut2 ? 1 : 0;
+  }
+  for (int n = 0; n < nc; n++) {
+    if (candKeep_[static_cast<std::size_t>(n)]) {
+      listI_.push_back(candI_[static_cast<std::size_t>(n)]);
+      listJ_.push_back(candJ_[static_cast<std::size_t>(n)]);
     }
   }
   haveList_ = true;
@@ -285,18 +320,36 @@ void DseamsSmooth::calculate() {
   }
   const double dmax2 = par_.dmax * par_.dmax;
   const double scale = lengthScale_;
+  const int nlist = static_cast<int>(listI_.size());
+  candX_.resize(static_cast<std::size_t>(nlist));
+  candY_.resize(static_cast<std::size_t>(nlist));
+  candZ_.resize(static_cast<std::size_t>(nlist));
+  candKeep_.resize(static_cast<std::size_t>(nlist));
+  const int nt = std::max(1, static_cast<int>(OpenMP::getNumThreads()));
   // Minimum image from PLUMED, including a tilted box. A hand-rolled
   // orthorhombic image disagrees with that derivative at the 1e-4 level.
-  for (std::size_t n = 0; n < listI_.size(); n++) {
-    const int i = listI_[n];
-    const int j = listJ_[n];
-    const Vector d = pbcDistance(getPosition(i), getPosition(j)) * scale;
-    if (d.modulo2() < dmax2) {
-      pairs_.push_back({i, j, d[0], d[1], d[2]});
+  // Distances are written by pair index and then gathered in list order.
+#pragma omp parallel for num_threads(nt) schedule(static)
+  for (int n = 0; n < nlist; n++) {
+    const Vector d = pbcDistance(getPosition(listI_[static_cast<std::size_t>(n)]),
+                                 getPosition(listJ_[static_cast<std::size_t>(n)])) *
+                     scale;
+    candX_[static_cast<std::size_t>(n)] = d[0];
+    candY_[static_cast<std::size_t>(n)] = d[1];
+    candZ_[static_cast<std::size_t>(n)] = d[2];
+    candKeep_[static_cast<std::size_t>(n)] = d.modulo2() < dmax2 ? 1 : 0;
+  }
+  for (int n = 0; n < nlist; n++) {
+    if (!candKeep_[static_cast<std::size_t>(n)]) {
+      continue;
     }
+    const int i = listI_[static_cast<std::size_t>(n)];
+    const int j = listJ_[static_cast<std::size_t>(n)];
+    pairs_.push_back({i, j, candX_[static_cast<std::size_t>(n)], candY_[static_cast<std::size_t>(n)],
+                      candZ_[static_cast<std::size_t>(n)]});
   }
   const bool deriv = !doNotCalculateDerivatives();
-  engine_.evaluate(nAtom_, pairs_, par_, deriv);
+  engine_.evaluate(nAtom_, pairs_, par_, deriv, nt);
   setValue(engine_.fraction);
   if (!deriv) {
     return;
