@@ -1,0 +1,8 @@
+# Moving restraint on the smooth ice fraction. Lengths are Angstrom.
+# KAPPA is kcal/mol with LAMMPS units real. Point LOAD at the module.
+UNITS LENGTH=A
+LOAD FILE=../../build/libdseams_plumed.so
+ice: DSEAMS_SMOOTH_CHILL ATOMS=1-512 LENGTH_SCALE=1.0
+ch: DSEAMS_CHILL ATOMS=1-512 CUTOFF=3.5 LENGTH_SCALE=1.0
+res: MOVINGRESTRAINT ARG=ice STEP0=0 AT0=0.184 KAPPA0=6000 STEP1=2000 AT1=0.95 KAPPA1=6000
+PRINT ARG=ice,res.bias,ch.fraction STRIDE=200 FILE=COLVAR
