@@ -308,13 +308,18 @@ A 512-molecule mW box with a crystalline core in liquid water is under
 =examples/lammps-mw-freeze/=. At 230 K a moving restraint takes the
 published ice fraction through 0.9 in 54 to 64 ps over three velocity
 seeds. Well-tempered metadynamics of the same collective variable on
-the TIP4P/Ice slab is =examples/gromacs-tip4pice/=. Eight walkers,
-28 ns at 210 K, put the only minimum at fraction 0.930. The free
-energy falls monotonically to that minimum; from fraction 0.40 the
-difference is 188 kJ/mol, with a few kJ/mol of residual drift over
-the last 0.5 ns. At 330 K the minimum is at 0.005. At equal wall
-time the smooth fraction drives the published ice fraction through
-0.8 in 3 ps, while Q6 MEAN reaches 0.62 in 5 ps.
+the TIP4P/Ice slab is =examples/gromacs-tip4pice/=. The smooth score
+keeps a slope in the liquid: a softer staggered weight that is still
+climbing at c = -0.8, and a Gaussian gate on a neighbour count of
+four. On ideal ice Ic the value is 0.99544 (residual -0.0046 against
+the published fraction of 1). Eight walkers, 24 ns at 210 K, one of
+them started from the hot liquid, put the ice minimum at fraction
+0.935. From fraction 0.10 that minimum is 129 kJ/mol for the
+432-molecule box (0.30 kJ/mol per molecule), with a 12 kJ/mol range
+over 2.4–3.0 ns. No walker entered 0.34–0.41. At 330 K the earlier
+single-walker minimum is at 0.005. At equal wall time, with Q6 on a
+neighbour list and ENVIRONMENTSIMILARITY pointed at this hexagonal
+ice, the smooth fraction is the fastest of the three per CPU-hour.
 An OpenMM TIP4P-Ew run is =examples/openmm-tip4pew/=. The actions and
 their keywords are in =docs/manual.txt=. The sources live in
 =plumed/dseams/= with =module.type= set to default-off, which is the

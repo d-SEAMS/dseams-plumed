@@ -57,60 +57,110 @@ point, is the liquid control. After 1.5 ns the collective variable
 sits at 0.001 and the `sum_hills` minimum is at fraction 0.005
 (`fes-330K.dat`). The ice well is gone.
 
-## Eight walkers, 28 ns at 210 K
+## Liquid slope
 
-The single-walker minimum was still moving at 2 ns. The follow-up is
-eight walkers sharing hills, bias factor 200, sigma 0.06, height
-1.5 kJ/mol, one hill every 0.5 ps, 3.5 ns each (28 ns in total). The
-starts are spread from fraction 0.17 to 0.97. A fully liquid box was
-also run; the smooth fraction has no gradient there, so that walker
-stays at zero and is left out of the profile below.
+The published count is flat in a fully liquid shell, so a restraint
+on that count alone does not nucleate. The smooth score adds two
+terms that are already one on a frozen molecule and still sloping in
+the liquid. `TAIL_C=-0.65` and `TAIL_W=0.20` put a second staggered
+weight between a liquid correlation and the published -0.8 edge, and
+the weight is still climbing at that edge, so four saturated soft
+bonds do not by themselves reach 1 (`TAIL_N=4`). `COORD_W=0.45` is a
+Gaussian in the smooth neighbour count, equal to 1 at the published
+shell of four.
 
-`fes-mw.dat` and `docs/fes-mw.png` are the free energy with the
-minimum set to zero. The grey band is the range of the profiles at
-3.0, 3.2, 3.35 and 3.5 ns.
+On the ideal ice Ic frame the score is 0.99544 against a published
+fraction of 1, residual -0.0046. On the thermal TIP4P/Ice crystal the
+score is 0.937 against a published fraction of 0.991, residual
+-0.054. The root mean square of those two frozen residuals is 0.038.
+The hot liquid scores 0.096, with published fraction 0. A restraint
+from that liquid expands the box toward the ice density and raises
+the published fraction to about 0.04; it does not cross into the
+crystal basin on a 100 ps timescale.
 
-| smooth fraction | F at 3.5 ns / kJ mol^-1 | range over 3.0–3.5 ns |
-| ---: | ---: | ---: |
-| 0.20 | 277 | 4.2 |
-| 0.40 | 188 | 3.5 |
-| 0.60 | 114 | 5.3 |
-| 0.80 | 47 | 3.6 |
-| 0.90 | 14 | 1.7 |
-| 0.930 | 0 | 0 |
+## Eight walkers, 24 ns at 210 K, liquid included
 
-The only minimum is at fraction 0.930. The free energy falls
-monotonically from low fraction to that minimum, so the uphill cost
-of leaving the ice basin is the ice-liquid difference and there is
-no separate barrier on this coordinate. From fraction 0.40 to the
-minimum the difference is 188 kJ/mol for the 432-molecule slab
-(0.44 kJ/mol per molecule). The minimum does not move across the last
-0.5 ns. The free energies above it still change by 2 to 5 kJ/mol
-over that window, so the 2 kJ/mol target is met at the minimum and
-at fraction 0.90, and the residual on the slope is the range in the
-table.
+Eight walkers share hills. Bias factor 200, sigma 0.06, height
+1.5 kJ/mol, one hill every 1 ps, 3 ns each (24 ns in total). One
+walker starts from the hot liquid and moves through 0.02–0.24. The
+others start from restrained intermediates and from the crystal. The
+water model is TIP4P/Ice.
 
-A second ensemble with the same bias factor and sigma 0.03, four
-walkers, 1.2 ns, puts the minimum at 0.944. At the same 1.2 ns the
-sigma 0.06 run has its minimum at 0.929. The narrower kernel leaves
-the wing about 50 to 80 kJ/mol higher, because those hills do not
-overlap the gaps between walkers as quickly.
+`fes-mw.dat` and `docs/fes-mw.png` are the free energy. Each column
+is zeroed at that column's minimum for fraction above 0.85. The band
+on the figure is the range of the 2.4, 2.7 and 3.0 ns profiles. No
+walker entered 0.34–0.41, and a restraint held at the low edge of
+that interval did not cross it in 40 ps, so the height of a barrier
+there is not measured. The figure leaves the interval blank. The
+rows of `fes-mw.dat` inside it are only the overlap of the two
+kernels.
 
-## Smooth fraction against Q6, equal wall time
+| smooth fraction | F at 3.0 ns / kJ mol^-1 | range over 2.4–3.0 ns | per molecule / kJ mol^-1 |
+| ---: | ---: | ---: | ---: |
+| 0.10 | 129 | 12 | 0.30 |
+| 0.20 | 57 | 21 | 0.13 |
+| 0.28 | 22 | 11 | 0.05 |
+| 0.45 | 277 | 5 | 0.64 |
+| 0.70 | 117 | 1 | 0.27 |
+| 0.90 | 12 | 1 | 0.028 |
+| 0.935 | 0 | 0 | 0 |
 
-Both start from the same slab (published fraction 0.403) with one
-thread and a restraint toward the ice value of that collective
-variable. The initial force, kappa times the distance to the target,
-is 4000 kJ/mol per unit of the coordinate. The wall clock is 603 s,
-which is 0.167 CPU-hour.
+The ice minimum stays at 0.935 from 2.4 ns onward. The low side has a
+well near 0.28. At 3.0 ns that well is 22 kJ/mol above the ice
+minimum. F(0.26) still moved by 16 kJ/mol over the preceding 0.6 ns,
+so the depth of the low well is not settled. F(0.45), on the crystal
+side of the empty interval, moved by 5 kJ/mol in that window.
 
-| collective variable | simulated time | published fraction at the end | time to published 0.8 |
-| --- | ---: | ---: | ---: |
-| smooth fraction | 1.437 ns | 0.891 | 3 ps |
-| Q6 MEAN | 5 ps | 0.623 | not reached |
+Per molecule of the 432-molecule box, the hot-liquid value (fraction
+0.10) sits 0.30 kJ/mol above the ice minimum, with a block range of
+0.03 kJ/mol. TIP4P/Ice (Abascal, Sanz, García Fernández and Vega,
+J. Chem. Phys. 122, 234511, 2005) melts at 272.2 K with an enthalpy of
+fusion of 1.29 kcal/mol (5.40 kJ/mol). Neglecting the heat-capacity
+difference, the bulk driving force at 210 K is about
+5.40*(1-210/272.2) = 1.23 kJ/mol per molecule. The 0.30 kJ/mol is
+smaller because fraction 0.10 to about 0.30 is mostly the soft tail:
+a restrained frame at 0.33 still has a published fraction near 0.04.
+From fraction 0.45, where a restrained frame has published fraction
+0.38, to the minimum is 277 kJ/mol for the box, 0.64 kJ/mol per
+molecule. Spread over the molecules that join the crystal between
+those two frames (published fraction 0.38 to 0.99) that is about
+1.05 kJ/mol per molecule that freezes, the same order as the 1.23
+kJ/mol estimate. The slab at fraction 0.45 is an interface, not a
+bulk liquid, and the heat-capacity term is not in the estimate.
 
-The smooth run delivers 207 ns/day and Q6 delivers 0.844 ns/day.
-Per CPU-hour the smooth fraction crosses the freezing threshold and
-Q6 does not. A static ENVIRONMENTSIMILARITY to cubic diamond is 0.127
-on the ice end of this slab and 0.248 on the liquid, so that
-coordinate points the wrong way for ice Ih and was not used as a bias.
+## Equal wall time, best setup of each coordinate
+
+Each run starts from the same slab (published fraction 0.403) and is
+stopped after 300 s of wall time. The restraint targets the thermal
+crystal value of that coordinate, with the initial force
+kappa*|target - slab| equal to 4000 kJ/mol. One job runs at a time.
+
+The smooth target is 0.937 (kappa 9313). Q6 uses
+`SWITCH={CUBIC D_0=0.32 D_MAX=0.35}`, `NL_CUTOFF=0.50`, `NL_STRIDE=10`
+and `MEAN`. The target is 0.584 (kappa 250000). `LOWMEM` is accepted
+and ignored: this PLUMED warns that the flag is deprecated and no
+longer changes the calculation. ENVIRONMENTSIMILARITY uses
+`SIGMA=0.03` and four oxygen shells taken from this crystal
+(`iceh/env1.pdb` through `env4.pdb`), which is hexagonal ice, not
+cubic diamond. The slab value is 0.340 and the crystal value is
+0.399 (kappa 67797). On the hot liquid the same coordinate is 0.096,
+so it points toward this ice.
+
+| coordinate | threads | ns/day | simulated | published at the end | time to published 0.8 | ns per CPU-hour |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| smooth | 1 | 194 | 0.674 ns | 0.896 | 2 ps | 8.09 |
+| Q6 | 1 | 7.20 | 25 ps | 0.722 | not reached | 0.30 |
+| environment similarity | 1 | 2.01 | 7 ps | 0.769 | not reached | 0.084 |
+| smooth | 8 | 535 | 1.86 ns | 0.928 | 12 ps | 2.79 |
+| Q6 | 8 | 49.5 | 172 ps | 0.889 | 29 ps | 0.26 |
+| environment similarity | 8 | 15.0 | 52 ps | 0.720 | not reached | 0.078 |
+
+A CPU-hour is wall time times the thread count. At one thread the
+smooth fraction is 27 times the Q6 throughput and is the only run
+that reaches a published fraction of 0.8. At eight threads Q6 does
+reach 0.8, at 29 ps, and the throughput ratio falls to 11. The smooth
+fraction still produces more simulated time per CPU-hour at either
+width. One thread is the better smooth rate per CPU-hour (8.1 ns
+against 2.8). Environment similarity to this hexagonal ice moves the
+published fraction in the right direction and is the most expensive
+of the three.

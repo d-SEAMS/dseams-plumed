@@ -3,7 +3,7 @@ Upstream branch for PLUMED
 
 The branch `dseams-smooth` is cut from PLUMED master
 `1d41a5467f1ae6cedd2c4582ac3c58c830706a3e`. Its tip is
-`939754b4236693c3c7e7f6e7ee9e56d12e915ade`.
+`6b74afaed038296f37fcc897ba92e4940c8d7f4d`.
 
 It adds the module `src/dseams` (on by default) with the action
 DSEAMS_SMOOTH_CHILL, a CHANGES entry in `CHANGES/v2.11.md`, and
@@ -13,6 +13,6 @@ repository, because they need seams-core.
 
 `make -C regtest dseams` runs that test through `regtest/scripts/run`,
 the same driver the top-level `make regtest` uses. The ideal ice Ic
-frame prints 0.98931120 and the reference matches. A bundle of the
+frame prints 0.99544036 and the reference matches. A bundle of the
 branch, which requires the master commit above, is
-`dseams-plumed-v6-upstream.bundle`.
+`dseams-plumed-v7-upstream.bundle`.
