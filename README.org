@@ -308,13 +308,18 @@ A 512-molecule mW box with a crystalline core in liquid water is under
 =examples/lammps-mw-freeze/=. At 230 K a moving restraint takes the
 published ice fraction through 0.9 in 54 to 64 ps over three velocity
 seeds. Well-tempered metadynamics of the same collective variable on
-the TIP4P/Ice slab is =examples/gromacs-tip4pice/=. At 210 K the free-energy
-minimum moves from fraction 0.69 at 0.5 ns to 0.83 at 1 ns and 0.92 at
-2 ns. At 330 K, above the melting point, the minimum is at 0.005.
+the TIP4P/Ice slab is =examples/gromacs-tip4pice/=. Eight walkers,
+28 ns at 210 K, put the only minimum at fraction 0.930. The free
+energy falls monotonically to that minimum; from fraction 0.40 the
+difference is 188 kJ/mol, with a few kJ/mol of residual drift over
+the last 0.5 ns. At 330 K the minimum is at 0.005. At equal wall
+time the smooth fraction drives the published ice fraction through
+0.8 in 3 ps, while Q6 MEAN reaches 0.62 in 5 ps.
 An OpenMM TIP4P-Ew run is =examples/openmm-tip4pew/=. The actions and
 their keywords are in =docs/manual.txt=. The sources live in
 =plumed/dseams/= with =module.type= set to default-off, which is the
-directory PLUMED expects under =src/=.
+directory PLUMED expects under =src/=. A branch of this action on
+PLUMED master is described in =docs/upstream.txt=.
 
 * Changelog
 
