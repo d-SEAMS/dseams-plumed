@@ -41,9 +41,11 @@ and kept until an atom has moved by half that skin or the box has changed.
 Pair vectors are refreshed from the minimum image every step, so the force
 and the virial see the current box. Y_3m and its Cartesian gradient are
 closed form, and the scratch used by the sum is kept between steps.
-The loops run on PLUMED's NUM_THREADS. Each molecule's sum follows the
-pair list, and the fraction and the virial are left folds, so the bits
-do not depend on the thread count.
+The loops run on PLUMED's NUM_THREADS. Y_3m is summed from a
+molecule-major copy of the neighbour list, still in pair-list order.
+The molecule scores and the virial are each reduced as eight partials
+folded from the first chunk to the last, so one thread and many threads
+write the same bits.
 
 On an ideal ice Ic lattice, with D_0 above the hydrogen-bond length and
 D_MAX below the second shell, the shell is the four nearest neighbours and
@@ -115,6 +117,7 @@ void DseamsSmooth::registerKeywords(Keywords &keys) {
   keys.add("compulsory", "BETA_E", "0.10", "width of the eclipsed-count sigmoid");
   keys.add("compulsory", "LENGTH_SCALE", "10.0",
            "factor from the PLUMED length unit to Angstrom (10 for nm, 1 after UNITS LENGTH=A)");
+  keys.setValueDescription("mean molecule score, between 0 and 1");
 }
 
 DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -347,14 +350,40 @@ void DseamsSmooth::calculate() {
     candZ_[static_cast<std::size_t>(n)] = d[2];
     candKeep_[static_cast<std::size_t>(n)] = d.modulo2() < dmax2 ? 1 : 0;
   }
-  for (int n = 0; n < nlist; n++) {
-    if (!candKeep_[static_cast<std::size_t>(n)]) {
-      continue;
+  // Pack survivors in list order. Chunk offsets make the result independent
+  // of how many threads run the copy.
+  std::vector<int> chunkBase(static_cast<std::size_t>(nt + 1));
+  std::vector<int> chunkCount(static_cast<std::size_t>(nt));
+#pragma omp parallel for num_threads(nt) schedule(static)
+  for (int t = 0; t < nt; t++) {
+    const int begin = nlist * t / nt;
+    const int end = nlist * (t + 1) / nt;
+    int count = 0;
+    for (int n = begin; n < end; n++) {
+      count += candKeep_[static_cast<std::size_t>(n)];
     }
-    const int i = listI_[static_cast<std::size_t>(n)];
-    const int j = listJ_[static_cast<std::size_t>(n)];
-    pairs_.push_back({i, j, candX_[static_cast<std::size_t>(n)], candY_[static_cast<std::size_t>(n)],
-                      candZ_[static_cast<std::size_t>(n)]});
+    chunkCount[static_cast<std::size_t>(t)] = count;
+  }
+  int packed = 0;
+  for (int t = 0; t < nt; t++) {
+    chunkBase[static_cast<std::size_t>(t)] = packed;
+    packed += chunkCount[static_cast<std::size_t>(t)];
+  }
+  pairs_.resize(static_cast<std::size_t>(packed));
+#pragma omp parallel for num_threads(nt) schedule(static)
+  for (int t = 0; t < nt; t++) {
+    const int begin = nlist * t / nt;
+    const int end = nlist * (t + 1) / nt;
+    int dest = chunkBase[static_cast<std::size_t>(t)];
+    for (int n = begin; n < end; n++) {
+      if (!candKeep_[static_cast<std::size_t>(n)]) {
+        continue;
+      }
+      pairs_[static_cast<std::size_t>(dest++)] = {
+          listI_[static_cast<std::size_t>(n)], listJ_[static_cast<std::size_t>(n)],
+          candX_[static_cast<std::size_t>(n)], candY_[static_cast<std::size_t>(n)],
+          candZ_[static_cast<std::size_t>(n)]};
+    }
   }
   const bool deriv = !doNotCalculateDerivatives();
   engine_.evaluate(nAtom_, pairs_, par_, deriv, nt);
@@ -362,6 +391,7 @@ void DseamsSmooth::calculate() {
   if (!deriv) {
     return;
   }
+#pragma omp parallel for num_threads(nt) schedule(static)
   for (int i = 0; i < nAtom_; i++) {
     const auto &g = engine_.grad[static_cast<std::size_t>(i)];
     setAtomsDerivatives(i, scale * Vector(g[0], g[1], g[2]));

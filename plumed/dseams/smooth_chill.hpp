@@ -251,10 +251,10 @@ struct Qacc {
 } // namespace smooth_detail
 
 // Reused scratch for one group of atoms. evaluate() keeps its buffers
-// between calls. nthreads is PLUMED's NUM_THREADS. Every sum that a
-// molecule owns walks that molecule's bonds in pair-list order, and the
-// fraction and the virial are left folds, so one thread and many threads
-// write the same bits.
+// between calls. nthreads is PLUMED's NUM_THREADS. The Y_3m sum reads a
+// molecule-major copy of each bond, still in pair-list order. The
+// molecule scores and the virial are eight partials folded from 0 to 7,
+// so the bits do not depend on the thread count.
 class SmoothChill {
 public:
   double fraction = 0.0;
@@ -277,31 +277,45 @@ public:
     sj_.resize(static_cast<std::size_t>(np));
     const SmoothParams parm = par;
 
+#pragma omp parallel for num_threads(nt) schedule(static)
+    for (int p = 0; p < np; p++) {
+      fillSlot(pairs[static_cast<std::size_t>(p)], slot_[static_cast<std::size_t>(p)],
+               keep_[static_cast<std::size_t>(p)], parm, wantDeriv);
+      si_[static_cast<std::size_t>(p)] = slot_[static_cast<std::size_t>(p)].i;
+      sj_[static_cast<std::size_t>(p)] = slot_[static_cast<std::size_t>(p)].j;
+    }
+    compact(n, nt);
+    const int nDir = off_.empty() ? 0 : off_.back();
+    dir_.resize(static_cast<std::size_t>(nDir));
+    // Transpose the bond vector into molecule-major order. The later sum
+    // streams this array; the pair-list order of each molecule is kept.
+#pragma omp parallel for num_threads(nt) schedule(static)
+    for (int a = 0; a < n; a++) {
+      for (int k = off_[static_cast<std::size_t>(a)]; k < off_[static_cast<std::size_t>(a + 1)]; k++) {
+        const Bond &b = bondAt(adj_[static_cast<std::size_t>(k)]);
+        Dir &d = dir_[static_cast<std::size_t>(k)];
+        d.x = b.dx;
+        d.y = b.dy;
+        d.z = b.dz;
+        d.sigma = b.sigma;
+        d.sign = (a == b.i) ? 1.0 : -1.0;
+      }
+    }
 #pragma omp parallel num_threads(nt)
     {
-#pragma omp for schedule(static)
-      for (int p = 0; p < np; p++) {
-        fillSlot(pairs[static_cast<std::size_t>(p)], slot_[static_cast<std::size_t>(p)],
-                 keep_[static_cast<std::size_t>(p)], parm, wantDeriv);
-        si_[static_cast<std::size_t>(p)] = slot_[static_cast<std::size_t>(p)].i;
-        sj_[static_cast<std::size_t>(p)] = slot_[static_cast<std::size_t>(p)].j;
-      }
-#pragma omp single
-      { compact(n); }
 #pragma omp for schedule(static)
       for (int a = 0; a < n; a++) {
         coord_[static_cast<std::size_t>(a)] = 0.0;
         U_[static_cast<std::size_t>(a)].clear();
         for (int k = off_[static_cast<std::size_t>(a)]; k < off_[static_cast<std::size_t>(a + 1)]; k++) {
-          const Bond &b = bondAt(adj_[static_cast<std::size_t>(k)]);
-          const double sign = (a == b.i) ? 1.0 : -1.0;
-          coord_[static_cast<std::size_t>(a)] += b.sigma;
+          const Dir &d = dir_[static_cast<std::size_t>(k)];
+          double re[7], im[7];
+          ylm3Value(d.x, d.y, d.z, re, im);
+          coord_[static_cast<std::size_t>(a)] += d.sigma;
           auto &u = U_[static_cast<std::size_t>(a)];
           for (int m = 0; m < 7; m++) {
-            const double yr = sign * b.re[m];
-            const double yi = sign * b.im[m];
-            u.re[m] += b.sigma * yr;
-            u.im[m] += b.sigma * yi;
+            u.re[m] += d.sigma * d.sign * re[m];
+            u.im[m] += d.sigma * d.sign * im[m];
           }
         }
       }
@@ -342,14 +356,26 @@ public:
         ne_[static_cast<std::size_t>(a)] = ne;
       }
     }
-
+    // Eight partial sums, folded 0..7. Same bits at every thread count.
+    constexpr int kScoreChunks = 8;
+    double scorePart[kScoreChunks] = {};
+#pragma omp parallel for num_threads(nt) schedule(static)
+    for (int c = 0; c < kScoreChunks; c++) {
+      const int begin = n * c / kScoreChunks;
+      const int end = n * (c + 1) / kScoreChunks;
+      double part = 0.0;
+      for (int i = begin; i < end; i++) {
+        const auto sc = smooth_detail::paperMolecule(ns_[static_cast<std::size_t>(i)],
+                                                     ne_[static_cast<std::size_t>(i)], parm.beta, parm.betaE);
+        dfdn_[static_cast<std::size_t>(i)] = wantDeriv ? sc.dnds : 0.0;
+        dfde_[static_cast<std::size_t>(i)] = wantDeriv ? sc.dnde : 0.0;
+        part += sc.value;
+      }
+      scorePart[c] = part;
+    }
     double sum = 0.0;
-    for (int i = 0; i < n; i++) {
-      const auto sc = smooth_detail::paperMolecule(ns_[static_cast<std::size_t>(i)],
-                                                   ne_[static_cast<std::size_t>(i)], parm.beta, parm.betaE);
-      dfdn_[static_cast<std::size_t>(i)] = wantDeriv ? sc.dnds : 0.0;
-      dfde_[static_cast<std::size_t>(i)] = wantDeriv ? sc.dnde : 0.0;
-      sum += sc.value;
+    for (int c = 0; c < kScoreChunks; c++) {
+      sum += scorePart[c];
     }
     fraction = sum / static_cast<double>(n);
     if (!wantDeriv) {
@@ -445,31 +471,57 @@ public:
         }
       }
     }
-
-    for (int a = 0; a < 3; a++) {
-      for (int b = 0; b < 3; b++) {
-        virial[a][b] = 0.0;
+    // Eight partial tensors, folded 0..7. The chunk edges do not depend on
+    // the thread count, so one thread and many threads write the same bits.
+    constexpr int kChunks = 8;
+    double part[kChunks][3][3] = {};
+#pragma omp parallel for num_threads(nt) schedule(static)
+    for (int c = 0; c < kChunks; c++) {
+      const int begin = nb_ * c / kChunks;
+      const int end = nb_ * (c + 1) / kChunks;
+      double v[3][3] = {};
+      for (int p = begin; p < end; p++) {
+        const auto &gf = gFwd_[static_cast<std::size_t>(p)];
+        const auto &gr = gRev_[static_cast<std::size_t>(p)];
+        const auto &dv = delta_[static_cast<std::size_t>(p)];
+        const double d[3] = {dv[0], dv[1], dv[2]};
+        for (int a = 0; a < 3; a++) {
+          for (int b = 0; b < 3; b++) {
+            v[a][b] -= d[a] * gf[b];
+            v[a][b] -= (-d[a]) * gr[b];
+          }
+        }
+      }
+      for (int a = 0; a < 3; a++) {
+        for (int b = 0; b < 3; b++) {
+          part[c][a][b] = v[a][b];
+        }
       }
     }
-    for (int p = 0; p < nb_; p++) {
-      const auto &gf = gFwd_[static_cast<std::size_t>(p)];
-      const auto &gr = gRev_[static_cast<std::size_t>(p)];
-      const auto &dv = delta_[static_cast<std::size_t>(p)];
-      const double d[3] = {dv[0], dv[1], dv[2]};
-      for (int a = 0; a < 3; a++) {
-        for (int c = 0; c < 3; c++) {
-          virial[a][c] -= d[a] * gf[c];
+    for (int a = 0; a < 3; a++) {
+      for (int b = 0; b < 3; b++) {
+        double sum = 0.0;
+        for (int c = 0; c < kChunks; c++) {
+          sum += part[c][a][b];
         }
-      }
-      for (int a = 0; a < 3; a++) {
-        for (int c = 0; c < 3; c++) {
-          virial[a][c] -= (-d[a]) * gr[c];
-        }
+        virial[a][b] = sum;
       }
     }
   }
 
 private:
+  // One directed neighbour in molecule-major order. sign is +1 when this
+  // molecule is the bond's first atom. Y_3m is evaluated from (x, y, z)
+  // and then multiplied by sign, which is the odd-l relation without
+  // calling the harmonic on the reversed vector.
+  struct Dir {
+    double x = 0.0;
+    double y = 0.0;
+    double z = 0.0;
+    double sigma = 0.0;
+    double sign = 1.0;
+  };
+
   struct Bond {
     int i = 0;
     int j = 0;
@@ -484,8 +536,6 @@ private:
     double se = 0.0;
     double dsdc = 0.0;
     double dsedc = 0.0;
-    double re[7] = {};
-    double im[7] = {};
   };
 
   void fillSlot(const PairBond &p, Bond &b, char &keep, const SmoothParams &par, bool wantDeriv) const {
@@ -517,9 +567,6 @@ private:
     b.se = 0.0;
     b.dsdc = 0.0;
     b.dsedc = 0.0;
-    // The Cartesian gradient is recomputed in the force loop. Storing it
-    // made the bond record too wide to stream.
-    ylm3Value(dx, dy, dz, b.re, b.im);
     (void)wantDeriv;
   }
 
@@ -528,22 +575,61 @@ private:
     return slot_[static_cast<std::size_t>(kept_[static_cast<std::size_t>(p)])];
   }
 
-  void compact(int n) {
-    kept_.clear();
-    if (kept_.capacity() < slot_.size()) {
-      kept_.reserve(slot_.size());
+  // Pair-list order, split into nt contiguous chunks. Each chunk is written
+  // at a precomputed offset, so the neighbour list matches a serial scan.
+  void compact(int n, int nt) {
+    const int np = static_cast<int>(keep_.size());
+    const int T = std::max(nt, 1);
+    std::vector<int> chunkBase(static_cast<std::size_t>(T + 1));
+    std::vector<int> chunkCount(static_cast<std::size_t>(T));
+#pragma omp parallel for num_threads(T) schedule(static)
+    for (int t = 0; t < T; t++) {
+      const int b = np * t / T;
+      const int e = np * (t + 1) / T;
+      int c = 0;
+      for (int p = b; p < e; p++) {
+        c += keep_[static_cast<std::size_t>(p)] ? 1 : 0;
+      }
+      chunkCount[static_cast<std::size_t>(t)] = c;
     }
-    for (std::size_t p = 0; p < slot_.size(); p++) {
-      if (keep_[p]) {
-        kept_.push_back(static_cast<int>(p));
+    int acc = 0;
+    for (int t = 0; t < T; t++) {
+      chunkBase[static_cast<std::size_t>(t)] = acc;
+      acc += chunkCount[static_cast<std::size_t>(t)];
+    }
+    chunkBase[static_cast<std::size_t>(T)] = acc;
+    nb_ = acc;
+    kept_.resize(static_cast<std::size_t>(nb_));
+#pragma omp parallel for num_threads(T) schedule(static)
+    for (int t = 0; t < T; t++) {
+      const int b = np * t / T;
+      const int e = np * (t + 1) / T;
+      int dest = chunkBase[static_cast<std::size_t>(t)];
+      for (int p = b; p < e; p++) {
+        if (keep_[static_cast<std::size_t>(p)]) {
+          kept_[static_cast<std::size_t>(dest++)] = p;
+        }
       }
     }
-    nb_ = static_cast<int>(kept_.size());
+
+    deg_.assign(static_cast<std::size_t>(T) * static_cast<std::size_t>(n), 0);
+#pragma omp parallel for num_threads(T) schedule(static)
+    for (int t = 0; t < T; t++) {
+      const int b = chunkBase[static_cast<std::size_t>(t)];
+      const int e = chunkBase[static_cast<std::size_t>(t + 1)];
+      int *deg = deg_.data() + static_cast<std::size_t>(t) * static_cast<std::size_t>(n);
+      for (int p = b; p < e; p++) {
+        const int slot = kept_[static_cast<std::size_t>(p)];
+        deg[si_[static_cast<std::size_t>(slot)]]++;
+        deg[sj_[static_cast<std::size_t>(slot)]]++;
+      }
+    }
     counts_.assign(static_cast<std::size_t>(n), 0);
-    for (int p = 0; p < nb_; p++) {
-      const int slot = kept_[static_cast<std::size_t>(p)];
-      counts_[static_cast<std::size_t>(si_[static_cast<std::size_t>(slot)])]++;
-      counts_[static_cast<std::size_t>(sj_[static_cast<std::size_t>(slot)])]++;
+    for (int t = 0; t < T; t++) {
+      const int *deg = deg_.data() + static_cast<std::size_t>(t) * static_cast<std::size_t>(n);
+      for (int a = 0; a < n; a++) {
+        counts_[static_cast<std::size_t>(a)] += deg[a];
+      }
     }
     off_.resize(static_cast<std::size_t>(n + 1));
     off_[0] = 0;
@@ -551,14 +637,30 @@ private:
       off_[static_cast<std::size_t>(a + 1)] =
           off_[static_cast<std::size_t>(a)] + counts_[static_cast<std::size_t>(a)];
     }
-    adj_.resize(static_cast<std::size_t>(off_[static_cast<std::size_t>(n)]));
-    std::vector<int> mark(off_.begin(), off_.end() - 1);
-    for (int p = 0; p < nb_; p++) {
-      const int slot = kept_[static_cast<std::size_t>(p)];
-      const int i = si_[static_cast<std::size_t>(slot)];
-      const int j = sj_[static_cast<std::size_t>(slot)];
-      adj_[static_cast<std::size_t>(mark[static_cast<std::size_t>(i)]++)] = p;
-      adj_[static_cast<std::size_t>(mark[static_cast<std::size_t>(j)]++)] = p;
+    const int nAdj = off_[static_cast<std::size_t>(n)];
+    adj_.resize(static_cast<std::size_t>(nAdj));
+    base_.resize(static_cast<std::size_t>(T) * static_cast<std::size_t>(n));
+    std::vector<int> place(off_.begin(), off_.end() - 1);
+    for (int t = 0; t < T; t++) {
+      const int *deg = deg_.data() + static_cast<std::size_t>(t) * static_cast<std::size_t>(n);
+      int *slot = base_.data() + static_cast<std::size_t>(t) * static_cast<std::size_t>(n);
+      for (int a = 0; a < n; a++) {
+        slot[a] = place[static_cast<std::size_t>(a)];
+        place[static_cast<std::size_t>(a)] += deg[a];
+      }
+    }
+#pragma omp parallel for num_threads(T) schedule(static)
+    for (int t = 0; t < T; t++) {
+      const int b = chunkBase[static_cast<std::size_t>(t)];
+      const int e = chunkBase[static_cast<std::size_t>(t + 1)];
+      int *mark = base_.data() + static_cast<std::size_t>(t) * static_cast<std::size_t>(n);
+      for (int p = b; p < e; p++) {
+        const int slot = kept_[static_cast<std::size_t>(p)];
+        const int i = si_[static_cast<std::size_t>(slot)];
+        const int j = sj_[static_cast<std::size_t>(slot)];
+        adj_[static_cast<std::size_t>(mark[i]++)] = p;
+        adj_[static_cast<std::size_t>(mark[j]++)] = p;
+      }
     }
   }
 
@@ -605,12 +707,14 @@ private:
   void forceOnBond(const Bond &b, double invN, std::array<double, 3> &gf, std::array<double, 3> &gr) const {
     smooth_detail::Ylm3 y;
     smooth_detail::ylm3ValueGrad(b.dx, b.dy, b.dz, y);
-    directedForce(b, b.i, b.re, b.im, 1.0, invN, y, gf);
+    double re[7], im[7];
+    smooth_detail::ylm3Value(b.dx, b.dy, b.dz, re, im);
+    directedForce(b, b.i, re, im, 1.0, invN, y, gf);
     double nre[7];
     double nim[7];
     for (int m = 0; m < 7; m++) {
-      nre[m] = -b.re[m];
-      nim[m] = -b.im[m];
+      nre[m] = -re[m];
+      nim[m] = -im[m];
     }
     directedForce(b, b.j, nre, nim, -1.0, invN, y, gr);
   }
@@ -674,6 +778,9 @@ private:
   std::vector<int> counts_;
   std::vector<int> off_;
   std::vector<int> adj_;
+  std::vector<int> deg_;
+  std::vector<int> base_;
+  std::vector<Dir> dir_;
   std::vector<double> coord_;
   std::vector<double> norm2_;
   std::vector<double> ns_;

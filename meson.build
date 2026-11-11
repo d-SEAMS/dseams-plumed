@@ -33,10 +33,10 @@ plumed_kernel = meson.get_compiler('cpp').find_library('plumedKernel', required:
 # The smooth fraction uses the same OpenMP width as PLUMED (NUM_THREADS).
 omp = dependency('openmp', required: true)
 mod = shared_module('dseams_plumed',
-  'src/DseamsCages.cpp',
-  'src/DseamsChill.cpp',
-  'src/DseamsRings.cpp',
-  'src/DseamsSmooth.cpp',
+  'plumed/dseams/DseamsCages.cpp',
+  'plumed/dseams/DseamsChill.cpp',
+  'plumed/dseams/DseamsRings.cpp',
+  'plumed/dseams/DseamsSmooth.cpp',
   dependencies: [yds_dep, plumed_kernel, omp],
   cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN',
              '-O3', '-march=native'],
@@ -46,17 +46,17 @@ mod = shared_module('dseams_plumed',
 
 offline = executable('dseams_offline', 'tests/offline_frame.cpp',
   dependencies: [yds_dep, omp],
-  include_directories: include_directories('src'),
+  include_directories: include_directories('plumed/dseams'),
   install: false)
 
 thread_bits = executable('dseams_thread_bits', 'tests/thread_bits.cpp',
   dependencies: [omp],
-  include_directories: include_directories('src'),
+  include_directories: include_directories('plumed/dseams'),
   install: false)
 test('thread_bits', thread_bits, timeout: 120)
 track = executable('dseams_track', 'tests/track_check.cpp',
   dependencies: [yds_dep, omp],
-  include_directories: include_directories('src'),
+  include_directories: include_directories('plumed/dseams'),
   install: false)
 test('track', track, timeout: 180)
 

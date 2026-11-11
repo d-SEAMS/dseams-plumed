@@ -1,0 +1,77 @@
+d-SEAMS collective variables for PLUMED
+======================================
+
+LOAD the shared module, then use the actions below. Distances that are
+written as Angstrom (D_0, D_MAX, CUTOFF, CANDIDATE, ION_CUTOFF,
+GUEST_RADIUS) are compared after coordinates are multiplied by
+LENGTH_SCALE. LENGTH_SCALE is 10 when PLUMED is in nanometres and 1
+after UNITS LENGTH=A. Component names have no underscores.
+
+DSEAMS_CHILL
+  Published Nguyen and Molinero CHILL+ ice fraction, or the OVITO
+  Chill+ modifier. The labels have no derivative. Bias
+  DSEAMS_SMOOTH_CHILL instead.
+
+  ATOMS        oxygen atoms, one per molecule (required)
+  CUTOFF       neighbour cutoff in Angstrom (default 3.5)
+  LENGTH_SCALE factor from the PLUMED length unit to Angstrom (default 10)
+  RULE         chill+ (default) or ovito-chill+
+
+  Components: fraction, nice, ncubic, nhex, ninterfacial, nclathrate,
+  ninterclath, nwater, nmax.
+  fraction is (ncubic + nhex) / N.
+
+DSEAMS_RINGS
+  Primitive ring counts on the cutoff graph. No derivative.
+
+  ATOMS        oxygen atoms (required)
+  CUTOFF       neighbour cutoff in Angstrom (default 3.5)
+  MAX          largest ring, 3 to 8 (default 6)
+  LENGTH_SCALE as above (default 10)
+
+  Components: n3, n4, n5, n6, n7, n8. Counts above MAX are zero.
+
+DSEAMS_SMOOTH_CHILL
+  Differentiable ice fraction. A neighbour inside D_MAX is weighted by
+  the PLUMED cubic switch (1 at D_0, 0 at D_MAX). q_3 follows the
+  d-SEAMS spherical harmonics. A bond is staggered around STAGGERED
+  with width WIDTH, and eclipsed on the published window from -0.35 to
+  0.25 with edge width ECL_WIDTH. Each molecule scores by a soft OR of
+  the published counts: four staggered neighbours, or three staggered
+  and one eclipsed. BETA and BETA_E are the widths of those count
+  sigmoids. The value is the mean score, with derivatives.
+
+  ATOMS        oxygen atoms (required)
+  D_0          inner switch distance in Angstrom (default 3.2)
+  D_MAX        outer switch distance in Angstrom (default 3.5)
+  STAGGERED    centre of the staggered sigmoid (default -0.8)
+  WIDTH        staggered width in c_ij (default 0.06)
+  ECL_WIDTH    eclipsed-window edge width (default 0.06)
+  BETA         staggered-count width (default 0.08)
+  BETA_E       eclipsed-count width (default 0.10)
+  LENGTH_SCALE as above (default 10)
+
+  The value carries derivatives. It is not periodic.
+
+DSEAMS_CAGES
+  Cage census and guest occupancy. No derivative.
+
+  ATOMS        oxygen atoms (required)
+  CUTOFF       bonded-graph cutoff in Angstrom (default 3.5)
+  CANDIDATE    search cutoff in Angstrom (default 5.5)
+  K            neighbours per molecule (default 4)
+  LENGTH_SCALE as above (default 10)
+  IONS         ion atoms (optional)
+  ION_CUTOFF   ion assignment cutoff in Angstrom (default 3.5)
+  LIBRARY      topology library path (optional)
+  HOPS         bonds in each local key (default 3)
+  SIGNATURE    signature file (optional)
+  GUESTS       guest atoms (optional)
+  GUEST_RADIUS guest search radius in Angstrom (default 4.0)
+
+  Components: nice, nmax, nclus, nic, nih, nmixed, chillice, chillmax,
+  chillinterfacial, sixrings, nionice, nionfront, nionliq, nclasses,
+  nnamed, ncages, noccupied, nmultiple, nfreeguest.
+
+The same text is the //+PLUMEDOC block of each action, which is what
+PLUMED renders into the manual.

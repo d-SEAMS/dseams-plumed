@@ -10,7 +10,7 @@ if [ ! -f "$module" ]; then
   exit 1
 fi
 fail=0
-for dir in "$root"/regtest/rt-*; do
+for dir in "$root"/regtest/dseams/rt-*; do
   name=$(basename "$dir")
   echo "=== $name ==="
   work=$(mktemp -d)

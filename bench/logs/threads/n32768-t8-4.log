@@ -1,4 +1,4 @@
-Loop time of 0.376828 on 8 procs for 16 steps with 32768 atoms
+Loop time of 0.335457 on 8 procs for 16 steps with 32768 atoms
 PLUMED: Number of threads: 8
 PLUMED:   OpenMP width is PLUMED NUM_THREADS (currently 8). One thread and many threads evaluate the same value and the same forces
-PLUMED: 4 Calculating (forward loop)                      17     0.165584     0.009740     0.005431     0.048875
+PLUMED: 4 Calculating (forward loop)                      17     0.123870     0.007286     0.003783     0.039339

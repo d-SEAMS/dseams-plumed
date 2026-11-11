@@ -1,5 +1,5 @@
 smooth fraction with a restraint, ideal ice Ic, LAMMPS units real, timestep 5 fs
-n 4096 threads 1 steps 30 reps 6 plumed_avg_ms mean 2.6357 stdev 0.0326 min 2.5940 loop_ms mean 4.6137 stdev 0.0260
-n 4096 threads 8 steps 30 reps 6 plumed_avg_ms mean 1.0542 stdev 0.0213 min 1.0280 loop_ms mean 3.0413 stdev 0.0399
-n 32768 threads 1 steps 16 reps 6 plumed_avg_ms mean 24.4220 stdev 0.3945 min 24.0710 loop_ms mean 37.7817 stdev 0.4271
-n 32768 threads 8 steps 16 reps 6 plumed_avg_ms mean 9.2093 stdev 0.4626 min 8.6510 loop_ms mean 23.4830 stdev 0.9847
+n 4096 threads 1 steps 30 reps 6 plumed_avg_ms mean 2.8630 stdev 0.0943 steady_ms mean 2.3175 stdev 0.0105 loop_ms mean 4.8633 stdev 0.1752
+n 4096 threads 8 steps 30 reps 6 plumed_avg_ms mean 0.9083 stdev 0.0977 steady_ms mean 0.5612 stdev 0.0698 loop_ms mean 3.0446 stdev 0.4099
+n 32768 threads 1 steps 16 reps 6 plumed_avg_ms mean 24.7135 stdev 0.3483 steady_ms mean 20.2852 stdev 0.1393 loop_ms mean 38.1972 stdev 0.3011
+n 32768 threads 8 steps 16 reps 6 plumed_avg_ms mean 6.8963 stdev 0.2073 steady_ms mean 3.8123 stdev 0.0683 loop_ms mean 20.6176 stdev 0.2143
