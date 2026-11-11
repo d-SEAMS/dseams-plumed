@@ -38,7 +38,8 @@ mod = shared_module('dseams_plumed',
   'src/DseamsRings.cpp',
   'src/DseamsSmooth.cpp',
   dependencies: [yds_dep, plumed_kernel, omp],
-  cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN'],
+  cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN',
+             '-O3', '-march=native'],
   name_prefix: 'lib',
   install: true,
   install_dir: get_option('libdir'))
@@ -53,6 +54,11 @@ thread_bits = executable('dseams_thread_bits', 'tests/thread_bits.cpp',
   include_directories: include_directories('src'),
   install: false)
 test('thread_bits', thread_bits, timeout: 120)
+track = executable('dseams_track', 'tests/track_check.cpp',
+  dependencies: [yds_dep, omp],
+  include_directories: include_directories('src'),
+  install: false)
+test('track', track, timeout: 180)
 
 pymod = import('python').find_installation('python3', required: false)
 if pymod.found()

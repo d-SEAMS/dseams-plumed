@@ -28,11 +28,13 @@ Each pair inside D_MAX contributes with the cubic switching function that
 is 1 at D_0 and 0 at D_MAX (the PLUMED CUBIC switch). q_3 is the
 switching-function average of Y_3m, in the same spherical-harmonic
 convention as d-SEAMS. A bond is staggered to the degree
-1 / (1 + exp((c_ij + 0.8) / WIDTH)). The molecule score is a sigmoid of
-its staggered-bond count, centred at MID (default 2.2) so that cubic ice
-(about four staggered bonds) and hexagonal ice (about three) both score
-near one and a liquid scores near zero. The collective variable is the
-mean molecule score.
+1 / (1 + exp((c_ij + 0.8) / WIDTH)). An eclipsed bond is the published
+window from -0.35 to 0.25, with edges of width ECL_WIDTH. A molecule
+scores by a soft OR of the published counts: four staggered neighbours
+(cubic), or three staggered and one eclipsed (hexagonal). BETA is the
+width of those count sigmoids. Both ices sit near one, a two-staggered
+interfacial molecule sits near zero, and a liquid sits near zero. The
+collective variable is the mean molecule score.
 
 The neighbour list is a Verlet list: it is built out to D_MAX plus a skin
 and kept until an atom has moved by half that skin or the box has changed.
@@ -105,10 +107,12 @@ void DseamsSmooth::registerKeywords(Keywords &keys) {
            "outer distance of the cubic neighbour switch, in Angstrom");
   keys.add("compulsory", "STAGGERED", "-0.8",
            "centre of the staggered sigmoid, the published c_ij edge");
-  keys.add("compulsory", "WIDTH", "0.05", "width of the staggered sigmoid");
-  keys.add("compulsory", "MID", "2.2",
-           "staggered-count midpoint of the per-molecule sigmoid");
-  keys.add("compulsory", "BETA", "0.30", "width of the per-molecule sigmoid");
+  keys.add("compulsory", "WIDTH", "0.06", "width of the staggered sigmoid in c_ij");
+  keys.add("compulsory", "ECL_WIDTH", "0.06",
+           "width of each edge of the published eclipsed window");
+  keys.add("compulsory", "BETA", "0.08",
+           "width of the staggered-count sigmoids (cubic at 4, hexagonal at 3)");
+  keys.add("compulsory", "BETA_E", "0.10", "width of the eclipsed-count sigmoid");
   keys.add("compulsory", "LENGTH_SCALE", "10.0",
            "factor from the PLUMED length unit to Angstrom (10 for nm, 1 after UNITS LENGTH=A)");
 }
@@ -123,15 +127,17 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   parse("D_MAX", par_.dmax);
   parse("STAGGERED", par_.staggered);
   parse("WIDTH", par_.width);
-  parse("MID", par_.mid);
+  parse("ECL_WIDTH", par_.widthE);
   parse("BETA", par_.beta);
+  parse("BETA_E", par_.betaE);
   parse("LENGTH_SCALE", lengthScale_);
   checkRead();
   if (!(par_.dmax > par_.d0) || !(par_.d0 > 0.0)) {
     error("require 0 < D_0 < D_MAX");
   }
-  if (!(par_.width > 0.0) || !(par_.beta > 0.0) || !(lengthScale_ > 0.0)) {
-    error("WIDTH, BETA and LENGTH_SCALE must be positive");
+  if (!(par_.width > 0.0) || !(par_.widthE > 0.0) || !(par_.beta > 0.0) || !(par_.betaE > 0.0) ||
+      !(lengthScale_ > 0.0)) {
+    error("WIDTH, ECL_WIDTH, BETA, BETA_E and LENGTH_SCALE must be positive");
   }
   nAtom_ = static_cast<int>(atoms.size());
   addValueWithDerivatives();
@@ -140,7 +146,9 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   anchor_.assign(static_cast<std::size_t>(nAtom_) * 3, 0.0);
   log.printf("  %d atoms, cubic switch %.3f to %.3f A, staggered sigmoid at %.3f width %.3f\n",
              nAtom_, par_.d0, par_.dmax, par_.staggered, par_.width);
-  log.printf("  molecule sigmoid midpoint %.3f width %.3f\n", par_.mid, par_.beta);
+  log.printf("  published counts, softened: cubic at 4 staggered, hexagonal at 3 staggered "
+             "plus 1 eclipsed; count widths %.3f and %.3f\n",
+             par_.beta, par_.betaE);
   log.printf("  Verlet neighbour list with skin %.2f A, rebuilt when an atom moves "
              "by half of that; Y_3m gradient is analytic\n",
              skin_);
