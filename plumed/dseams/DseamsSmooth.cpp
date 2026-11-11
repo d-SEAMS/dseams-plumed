@@ -32,9 +32,18 @@ convention as d-SEAMS. A bond is staggered to the degree
 window from -0.35 to 0.25, with edges of width ECL_WIDTH. A molecule
 scores by a soft OR of the published counts: four staggered neighbours
 (cubic), or three staggered and one eclipsed (hexagonal). BETA is the
-width of those count sigmoids. Both ices sit near one, a two-staggered
-interfacial molecule sits near zero, and a liquid sits near zero. The
-collective variable is the mean molecule score.
+width of those count sigmoids. A second, softer staggered weight
+(TAIL_C, TAIL_W) turns on between a liquid correlation and the
+published -0.8 edge, and the molecule score includes
+1 - exp(-n / TAIL_N) for that count. The centre is close enough to
+-0.8 that the weight is still climbing at the published threshold, so
+a restraint cannot be satisfied by bonds that are only mildly
+staggered. A Gaussian gate in the smooth neighbour count is 1 at the
+published shell of four (COORD_W is its width) and is below one when
+a liquid carries an extra neighbour. On a frozen molecule the
+published channel is already one and the shell is already four, so
+neither term moves the value. In a liquid both terms still have a
+slope. The collective variable is the mean molecule score.
 
 The neighbour list is a Verlet list: it is built out to D_MAX plus a skin
 and kept until an atom has moved by half that skin or the box has changed.
@@ -115,6 +124,13 @@ void DseamsSmooth::registerKeywords(Keywords &keys) {
   keys.add("compulsory", "BETA", "0.08",
            "width of the staggered-count sigmoids (cubic at 4, hexagonal at 3)");
   keys.add("compulsory", "BETA_E", "0.10", "width of the eclipsed-count sigmoid");
+  keys.add("compulsory", "TAIL_C", "-0.65",
+           "centre of the soft staggered weight, between a liquid correlation and -0.8");
+  keys.add("compulsory", "TAIL_W", "0.20", "width of the soft staggered weight in c_ij");
+  keys.add("compulsory", "TAIL_N", "4.0",
+           "soft-count scale. The tail is 1 - exp(-n / TAIL_N). Four saturated bonds do not reach 1");
+  keys.add("compulsory", "COORD_W", "0.45",
+           "width of the Gaussian that is 1 when the smooth neighbour count is 4");
   keys.add("compulsory", "LENGTH_SCALE", "10.0",
            "factor from the PLUMED length unit to Angstrom (10 for nm, 1 after UNITS LENGTH=A)");
   keys.setValueDescription("mean molecule score, between 0 and 1");
@@ -133,14 +149,18 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   parse("ECL_WIDTH", par_.widthE);
   parse("BETA", par_.beta);
   parse("BETA_E", par_.betaE);
+  parse("TAIL_C", par_.tailCenter);
+  parse("TAIL_W", par_.tailWidth);
+  parse("TAIL_N", par_.tailN);
+  parse("COORD_W", par_.coordWidth);
   parse("LENGTH_SCALE", lengthScale_);
   checkRead();
   if (!(par_.dmax > par_.d0) || !(par_.d0 > 0.0)) {
     error("require 0 < D_0 < D_MAX");
   }
   if (!(par_.width > 0.0) || !(par_.widthE > 0.0) || !(par_.beta > 0.0) || !(par_.betaE > 0.0) ||
-      !(lengthScale_ > 0.0)) {
-    error("WIDTH, ECL_WIDTH, BETA, BETA_E and LENGTH_SCALE must be positive");
+      !(par_.tailWidth > 0.0) || !(par_.tailN > 0.0) || !(par_.coordWidth > 0.0) || !(lengthScale_ > 0.0)) {
+    error("WIDTH, ECL_WIDTH, BETA, BETA_E, TAIL_W, TAIL_N, COORD_W and LENGTH_SCALE must be positive");
   }
   nAtom_ = static_cast<int>(atoms.size());
   addValueWithDerivatives();
@@ -152,6 +172,9 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   log.printf("  published counts, softened: cubic at 4 staggered, hexagonal at 3 staggered "
              "plus 1 eclipsed; count widths %.3f and %.3f\n",
              par_.beta, par_.betaE);
+  log.printf("  soft staggered tail centred at %.3f width %.3f, count scale %.3f; "
+             "neighbour-count gate width %.3f around 4\n",
+             par_.tailCenter, par_.tailWidth, par_.tailN, par_.coordWidth);
   log.printf("  Verlet neighbour list with skin %.2f A, rebuilt when an atom moves "
              "by half of that; Y_3m gradient is analytic\n",
              skin_);

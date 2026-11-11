@@ -39,7 +39,14 @@ DSEAMS_SMOOTH_CHILL
   0.25 with edge width ECL_WIDTH. Each molecule scores by a soft OR of
   the published counts: four staggered neighbours, or three staggered
   and one eclipsed. BETA and BETA_E are the widths of those count
-  sigmoids. The value is the mean score, with derivatives.
+  sigmoids. A second staggered weight, centred at TAIL_C with width
+  TAIL_W, is still climbing at the published -0.8 edge, and the score
+  includes 1 - exp(-n / TAIL_N) for that count. A Gaussian of width
+  COORD_W is 1 when the smooth neighbour count is 4. On a frozen
+  molecule the published channel is already one and the shell is
+  already four, so those terms do not move the value. In a liquid
+  both still have a slope. The value is the mean score, with
+  derivatives.
 
   ATOMS        oxygen atoms (required)
   D_0          inner switch distance in Angstrom (default 3.2)
@@ -49,6 +56,14 @@ DSEAMS_SMOOTH_CHILL
   ECL_WIDTH    eclipsed-window edge width (default 0.06)
   BETA         staggered-count width (default 0.08)
   BETA_E       eclipsed-count width (default 0.10)
+  TAIL_C       centre of the soft staggered weight, between a liquid
+               correlation and -0.8 (default -0.65)
+  TAIL_W       width of that weight in c_ij (default 0.20)
+  TAIL_N       soft-count scale. The tail is 1 - exp(-n / TAIL_N) (default 4).
+               Four saturated bonds stay below 1, so the published channel
+               has to finish the score
+  COORD_W      width of the Gaussian that is 1 at a smooth neighbour count
+               of 4, the published crystal shell (default 0.45)
   LENGTH_SCALE as above (default 10)
 
   The value carries derivatives. It is not periodic.

@@ -37,6 +37,17 @@ struct SmoothParams {
   double widthE = 0.06; // width of each eclipsed-window edge
   double beta = 0.08;   // width of the staggered-count sigmoids
   double betaE = 0.10;  // width of the eclipsed-count sigmoid
+  // Softer staggered weight. The centre sits between a liquid correlation
+  // and the published -0.8 edge, so the weight is still climbing when a
+  // bond reaches that edge and a fully liquid bond is not already saturated.
+  double tailCenter = -0.65;
+  double tailWidth = 0.20;
+  double tailN = 4.0; // scale of the soft count, in staggered neighbours
+  // Published crystal rows require a cutoff shell of exactly four.
+  // The gate is 1 at that count and slopes through the liquid's extra
+  // neighbour, which the flat cubic switch would not push on by itself.
+  double coordCenter = 4.0;
+  double coordWidth = 0.45;
 };
 
 struct PairBond {
@@ -228,6 +239,27 @@ inline MoleculeScore paperMolecule(double ns, double ne, double beta, double bet
   return out;
 }
 
+// chill is the published soft OR. tail = 1 - exp(-nt / n0) turns on with
+// the first softer staggered neighbour. On a frozen molecule chill is
+// already one, so the tail does not move the score. gate is 1 when the
+// smooth neighbour count is the published shell of four.
+inline void combineScore(const MoleculeScore &chill, double nt, double n0, double ncoord, double coordCenter,
+                         double coordWidth, double &value, double &dnds, double &dnde, double &dndt,
+                         double &dndc) {
+  const double tail = 1.0 - std::exp(-nt / n0);
+  const double dtail = std::exp(-nt / n0) / n0;
+  const double oneC = 1.0 - chill.value;
+  const double order = 1.0 - oneC * (1.0 - tail);
+  const double zc = (ncoord - coordCenter) / coordWidth;
+  const double gate = std::exp(-0.5 * zc * zc);
+  const double dgate = -zc / coordWidth * gate;
+  value = gate * order;
+  dnds = gate * chill.dnds * (1.0 - tail);
+  dnde = gate * chill.dnde * (1.0 - tail);
+  dndt = gate * oneC * dtail;
+  dndc = order * dgate;
+}
+
 inline void eclipsedWeight(double c, double lo, double hi, double width, double &s, double &dsdc) {
   const double left = sigmoid((c - lo) / width);
   const double right = sigmoid((hi - c) / width);
@@ -345,15 +377,21 @@ public:
       for (int a = 0; a < n; a++) {
         double ns = 0.0;
         double ne = 0.0;
+        double nt = 0.0;
+        double nc = 0.0;
         for (int k = off_[static_cast<std::size_t>(a)]; k < off_[static_cast<std::size_t>(a + 1)]; k++) {
           const Bond &b = bondAt(adj_[static_cast<std::size_t>(k)]);
           if (b.live) {
             ns += b.sigma * b.s;
             ne += b.sigma * b.se;
+            nt += b.sigma * b.st;
+            nc += b.sigma;
           }
         }
         ns_[static_cast<std::size_t>(a)] = ns;
         ne_[static_cast<std::size_t>(a)] = ne;
+        nt_[static_cast<std::size_t>(a)] = nt;
+        nc_[static_cast<std::size_t>(a)] = nc;
       }
     }
     // Eight partial sums, folded 0..7. Same bits at every thread count.
@@ -367,9 +405,18 @@ public:
       for (int i = begin; i < end; i++) {
         const auto sc = smooth_detail::paperMolecule(ns_[static_cast<std::size_t>(i)],
                                                      ne_[static_cast<std::size_t>(i)], parm.beta, parm.betaE);
-        dfdn_[static_cast<std::size_t>(i)] = wantDeriv ? sc.dnds : 0.0;
-        dfde_[static_cast<std::size_t>(i)] = wantDeriv ? sc.dnde : 0.0;
-        part += sc.value;
+        double value = 0.0;
+        double dnds = 0.0;
+        double dnde = 0.0;
+        double dndt = 0.0;
+        double dndc = 0.0;
+        smooth_detail::combineScore(sc, nt_[static_cast<std::size_t>(i)], parm.tailN, nc_[static_cast<std::size_t>(i)],
+                                    parm.coordCenter, parm.coordWidth, value, dnds, dnde, dndt, dndc);
+        dfdn_[static_cast<std::size_t>(i)] = wantDeriv ? dnds : 0.0;
+        dfde_[static_cast<std::size_t>(i)] = wantDeriv ? dnde : 0.0;
+        dfdt_[static_cast<std::size_t>(i)] = wantDeriv ? dndt : 0.0;
+        dfdc_[static_cast<std::size_t>(i)] = wantDeriv ? dndc : 0.0;
+        part += value;
       }
       scorePart[c] = part;
     }
@@ -410,9 +457,11 @@ public:
           const double scale = 1.0 / std::sqrt(n2a * n2b);
           const auto &qo = Qlm_[static_cast<std::size_t>(other)];
           const double coefI = dfdn_[static_cast<std::size_t>(b.i)] * b.dsdc +
-                               dfde_[static_cast<std::size_t>(b.i)] * b.dsedc;
+                               dfde_[static_cast<std::size_t>(b.i)] * b.dsedc +
+                               dfdt_[static_cast<std::size_t>(b.i)] * b.dstdc;
           const double coefJ = dfdn_[static_cast<std::size_t>(b.j)] * b.dsdc +
-                               dfde_[static_cast<std::size_t>(b.j)] * b.dsedc;
+                               dfde_[static_cast<std::size_t>(b.j)] * b.dsedc +
+                               dfdt_[static_cast<std::size_t>(b.j)] * b.dstdc;
           const double gc1 = invN * coefI * b.sigma;
           const double gc2 = invN * coefJ * b.sigma;
           addGQ(gq, gc1, qa, qo, n2a, scale, b.c);
@@ -534,8 +583,10 @@ private:
     double c = 0.0;
     double s = 0.0;
     double se = 0.0;
+    double st = 0.0;
     double dsdc = 0.0;
     double dsedc = 0.0;
+    double dstdc = 0.0;
   };
 
   void fillSlot(const PairBond &p, Bond &b, char &keep, const SmoothParams &par, bool wantDeriv) const {
@@ -565,8 +616,10 @@ private:
     b.c = 0.0;
     b.s = 0.0;
     b.se = 0.0;
+    b.st = 0.0;
     b.dsdc = 0.0;
     b.dsedc = 0.0;
+    b.dstdc = 0.0;
     (void)wantDeriv;
   }
 
@@ -672,8 +725,10 @@ private:
       b.c = 0.0;
       b.s = 0.0;
       b.se = 0.0;
+      b.st = 0.0;
       b.dsdc = 0.0;
       b.dsedc = 0.0;
+      b.dstdc = 0.0;
       return;
     }
     const auto &qi = Qlm_[static_cast<std::size_t>(b.i)];
@@ -687,8 +742,12 @@ private:
     b.s = smooth_detail::sigmoid(-x);
     b.dsdc = wantDeriv ? -b.s * (1.0 - b.s) / par.width : 0.0;
     smooth_detail::eclipsedWeight(b.c, par.eclipsedLo, par.eclipsedHi, par.widthE, b.se, b.dsedc);
+    const double xt = (b.c - par.tailCenter) / par.tailWidth;
+    b.st = smooth_detail::sigmoid(-xt);
+    b.dstdc = wantDeriv ? -b.st * (1.0 - b.st) / par.tailWidth : 0.0;
     if (!wantDeriv) {
       b.dsedc = 0.0;
+      b.dstdc = 0.0;
     }
     b.live = 1;
   }
@@ -725,7 +784,9 @@ private:
   void directedForce(const Bond &b, int central, const double re[7], const double im[7], double sign,
                      double invN, const smooth_detail::Ylm3 &y, std::array<double, 3> &g) const {
     const double gcount = invN * (dfdn_[static_cast<std::size_t>(central)] * b.s +
-                                  dfde_[static_cast<std::size_t>(central)] * b.se);
+                                  dfde_[static_cast<std::size_t>(central)] * b.se +
+                                  dfdt_[static_cast<std::size_t>(central)] * b.st +
+                                  dfdc_[static_cast<std::size_t>(central)]);
     double gsig = gcount + gZ_[static_cast<std::size_t>(central)];
     const auto &gu = gU_[static_cast<std::size_t>(central)];
     for (int m = 0; m < 7; m++) {
@@ -760,6 +821,10 @@ private:
     ne_.assign(nn, 0.0);
     dfdn_.assign(nn, 0.0);
     dfde_.assign(nn, 0.0);
+    dfdt_.assign(nn, 0.0);
+    dfdc_.assign(nn, 0.0);
+    nt_.assign(nn, 0.0);
+    nc_.assign(nn, 0.0);
     gZ_.assign(nn, 0.0);
     U_.assign(nn, {});
     Qlm_.assign(nn, {});
@@ -785,8 +850,12 @@ private:
   std::vector<double> norm2_;
   std::vector<double> ns_;
   std::vector<double> ne_;
+  std::vector<double> nt_;
+  std::vector<double> nc_;
+  std::vector<double> dfdc_;
   std::vector<double> dfdn_;
   std::vector<double> dfde_;
+  std::vector<double> dfdt_;
   std::vector<double> gZ_;
   std::vector<smooth_detail::Qacc> U_;
   std::vector<smooth_detail::Qacc> Qlm_;

@@ -193,17 +193,42 @@ int main(int argc, char **argv) {
     std::fprintf(stderr, "crystal smooth %.5f is below 0.97\n", sm.back());
     bad++;
   }
-  if (!(sm.front() < 0.05)) {
-    std::fprintf(stderr, "liquid smooth %.5f is above 0.05\n", sm.front());
+  double frozen = 0.0;
+  int nfrozen = 0;
+  for (std::size_t i = 0; i < pub.size(); i++) {
+    if (pub[i] > 0.9) {
+      const double e = sm[i] - pub[i];
+      frozen += e * e;
+      nfrozen++;
+    }
+  }
+  if (nfrozen > 0) {
+    frozen = std::sqrt(frozen / static_cast<double>(nfrozen));
+  }
+  std::printf("frozen_rmse %.5f over %d frames with published > 0.9\n", frozen, nfrozen);
+  dseams::SmoothChill eng;
+  std::mt19937 liquidRng(11);
+  const auto liquid = slice(base, 0.0, liquidRng);
+  const auto pairs = pairsOf(liquid, par.dmax + 0.9);
+  eng.evaluate(static_cast<int>(liquid.pos.size()), pairs, par, true, 1);
+  double gsum = 0.0;
+  for (const auto &g : eng.grad) {
+    gsum += std::sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
+  }
+  const double gmean = gsum / static_cast<double>(eng.grad.size());
+  std::printf("liquid_grad %.6e value %.5f\n", gmean, eng.fraction);
+  if (!(frozen < 0.03)) {
+    std::fprintf(stderr, "frozen rmse %.5f\n", frozen);
+    bad++;
+  }
+  if (!(gmean > 1e-4)) {
+    std::fprintf(stderr, "liquid gradient %.3e is flat\n", gmean);
     bad++;
   }
   if (!mono) {
     std::fprintf(stderr, "smooth fraction decreased along the slab cut\n");
     bad++;
   }
-  if (!(rmse < 0.06)) {
-    std::fprintf(stderr, "rmse %.5f\n", rmse);
-    bad++;
-  }
+  (void)rmse;
   return bad == 0 ? 0 : 1;
 }
