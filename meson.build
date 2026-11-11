@@ -25,12 +25,17 @@ message('plumed include dir: ' + plumed_inc)
 # -isystem strings rather than include_directories(): the pixi environment
 # that holds plumed can live inside this source tree, which meson refuses
 # to reference through include_directories
+# Link the kernel as well as including its headers. LAMMPS loads the kernel
+# into the global namespace, so an undefined PLUMED symbol in the module is
+# enough. GROMACS dlopens the kernel locally, and the module then has to
+# name libplumedKernel itself.
+plumed_kernel = meson.get_compiler('cpp').find_library('plumedKernel', required: true)
 mod = shared_module('dseams_plumed',
   'src/DseamsCages.cpp',
   'src/DseamsChill.cpp',
   'src/DseamsRings.cpp',
   'src/DseamsSmooth.cpp',
-  dependencies: [yds_dep],
+  dependencies: [yds_dep, plumed_kernel],
   cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN'],
   name_prefix: 'lib',
   install: true,
@@ -73,6 +78,11 @@ if pymod.found()
     args: [meson.project_source_root() / 'tests' / 'chill_match.py',
            plumed.full_path(), mod.full_path(), offline.full_path()],
     timeout: 1800)
+  test('regtest',
+    find_program('bash'),
+    args: [meson.project_source_root() / 'regtest' / 'run'],
+    env: {'DSEAMS_MODULE': mod.full_path(), 'PLUMED_BIN': plumed.full_path()},
+    timeout: 600)
   test('driver_smooth',
     pymod,
     args: [meson.project_source_root() / 'tests' / 'smooth_check.py',

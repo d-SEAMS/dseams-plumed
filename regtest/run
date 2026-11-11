@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Run the rt-* directories the way PLUMED's regtest runner does:
+# copy the inputs, run `plumed driver`, and diff each *.reference.
+set -eu
+root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+module=${DSEAMS_MODULE:-$root/build/libdseams_plumed.so}
+plumed=${PLUMED_BIN:-plumed}
+if [ ! -f "$module" ]; then
+  echo "FAILURE: module not found at $module"
+  exit 1
+fi
+fail=0
+for dir in "$root"/regtest/rt-*; do
+  name=$(basename "$dir")
+  echo "=== $name ==="
+  work=$(mktemp -d)
+  cp "$dir"/* "$work"/
+  sed -i "s#MODULE_SO#$module#g" "$work/plumed.dat"
+  # shellcheck disable=SC1091
+  source "$work/config"
+  set +e
+  # shellcheck disable=SC2086
+  (cd "$work" && $plumed --no-mpi driver $arg > out 2> err)
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    echo "FAILURE: driver exit $status"
+    tail -40 "$work/err"
+    fail=1
+    rm -rf "$work"
+    continue
+  fi
+  if [ -f "$work/forces.dat" ]; then
+    if ! python3 - "$work/forces.dat" << 'PY'
+import sys
+worst = 0.0
+checked = 0
+for line in open(sys.argv[1]):
+    if not line.strip() or line.startswith("#"):
+        continue
+    parts = line.split()
+    if len(parts) < 3:
+        continue
+    analytical = float(parts[1])
+    numerical = float(parts[2])
+    scale = max(abs(analytical), abs(numerical))
+    if abs(analytical - numerical) > 5e-5:
+        print("FAILURE: absolute force mismatch", line.strip())
+        sys.exit(1)
+    # Resolved components, including the diagonal of the virial.
+    if scale < 0.05:
+        continue
+    checked += 1
+    worst = max(worst, abs(analytical - numerical) / scale)
+if checked == 0:
+    print("FAILURE: no force component large enough to check")
+    sys.exit(1)
+if worst > 1e-4:
+    print("FAILURE: relative force/virial mismatch", worst)
+    sys.exit(1)
+print(f"force check ok, {checked} components, worst relative {worst:.3e}")
+PY
+    then
+      fail=1
+    fi
+  fi
+  checked=0
+  for ref in "$work"/*.reference; do
+    [ -f "$ref" ] || continue
+    new=${ref%.reference}
+    base=$(basename "$new")
+    if [ ! -f "$new" ]; then
+      echo "FAILURE: missing $base"
+      fail=1
+      continue
+    fi
+    if ! diff -q "$ref" "$new" >/dev/null; then
+      echo "FAILURE: diff $base"
+      diff -u "$ref" "$new" | head -40
+      fail=1
+    else
+      echo "match $base"
+    fi
+    checked=$((checked + 1))
+  done
+  if [ "$checked" -eq 0 ]; then
+    echo "FAILURE: no reference in $name"
+    fail=1
+  fi
+  rm -rf "$work"
+done
+exit "$fail"
