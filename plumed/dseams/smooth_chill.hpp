@@ -35,7 +35,7 @@ struct SmoothParams {
   double eclipsedHi = 0.25;
   double width = 0.06;  // width of the staggered sigmoid in c_ij
   double widthE = 0.06; // width of each eclipsed-window edge
-  double beta = 0.08;   // width of the staggered-count sigmoids
+  double beta = 0.06;   // width of the staggered-count sigmoids
   double betaE = 0.10;  // width of the eclipsed-count sigmoid
   // Softer staggered weight. The centre sits between a liquid correlation
   // and the published -0.8 edge, so the weight is still climbing when a
@@ -43,11 +43,14 @@ struct SmoothParams {
   double tailCenter = -0.65;
   double tailWidth = 0.20;
   double tailN = 4.0; // scale of the soft count, in staggered neighbours
+  // Ceiling of the soft channel. Without it a liquid can outscore a
+  // small nucleus, and the mean then jumps when the crystal finally wins.
+  double tailAmp = 0.65;
   // Published crystal rows require a cutoff shell of exactly four.
   // The gate is 1 at that count and slopes through the liquid's extra
   // neighbour, which the flat cubic switch would not push on by itself.
   double coordCenter = 4.0;
-  double coordWidth = 0.45;
+  double coordWidth = 0.70;
 };
 
 struct PairBond {
@@ -243,11 +246,12 @@ inline MoleculeScore paperMolecule(double ns, double ne, double beta, double bet
 // the first softer staggered neighbour. On a frozen molecule chill is
 // already one, so the tail does not move the score. gate is 1 when the
 // smooth neighbour count is the published shell of four.
-inline void combineScore(const MoleculeScore &chill, double nt, double n0, double ncoord, double coordCenter,
-                         double coordWidth, double &value, double &dnds, double &dnde, double &dndt,
-                         double &dndc) {
-  const double tail = 1.0 - std::exp(-nt / n0);
-  const double dtail = std::exp(-nt / n0) / n0;
+inline void combineScore(const MoleculeScore &chill, double nt, double n0, double amp, double ncoord,
+                         double coordCenter, double coordWidth, double &value, double &dnds, double &dnde,
+                         double &dndt, double &dndc) {
+  const double raw = 1.0 - std::exp(-nt / n0);
+  const double tail = amp * raw;
+  const double dtail = amp * std::exp(-nt / n0) / n0;
   const double oneC = 1.0 - chill.value;
   const double order = 1.0 - oneC * (1.0 - tail);
   const double zc = (ncoord - coordCenter) / coordWidth;
@@ -410,8 +414,9 @@ public:
         double dnde = 0.0;
         double dndt = 0.0;
         double dndc = 0.0;
-        smooth_detail::combineScore(sc, nt_[static_cast<std::size_t>(i)], parm.tailN, nc_[static_cast<std::size_t>(i)],
-                                    parm.coordCenter, parm.coordWidth, value, dnds, dnde, dndt, dndc);
+        smooth_detail::combineScore(sc, nt_[static_cast<std::size_t>(i)], parm.tailN, parm.tailAmp,
+                                    nc_[static_cast<std::size_t>(i)], parm.coordCenter, parm.coordWidth, value, dnds,
+                                    dnde, dndt, dndc);
         dfdn_[static_cast<std::size_t>(i)] = wantDeriv ? dnds : 0.0;
         dfde_[static_cast<std::size_t>(i)] = wantDeriv ? dnde : 0.0;
         dfdt_[static_cast<std::size_t>(i)] = wantDeriv ? dndt : 0.0;

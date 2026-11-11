@@ -38,7 +38,8 @@ published -0.8 edge, and the molecule score includes
 1 - exp(-n / TAIL_N) for that count. The centre is close enough to
 -0.8 that the weight is still climbing at the published threshold, so
 a restraint cannot be satisfied by bonds that are only mildly
-staggered. A Gaussian gate in the smooth neighbour count is 1 at the
+staggered. TAIL_AMP caps that channel so the liquid score stays below
+a small crystal nucleus. A Gaussian gate in the smooth neighbour count is 1 at the
 published shell of four (COORD_W is its width) and is below one when
 a liquid carries an extra neighbour. On a frozen molecule the
 published channel is already one and the shell is already four, so
@@ -121,15 +122,17 @@ void DseamsSmooth::registerKeywords(Keywords &keys) {
   keys.add("compulsory", "WIDTH", "0.06", "width of the staggered sigmoid in c_ij");
   keys.add("compulsory", "ECL_WIDTH", "0.06",
            "width of each edge of the published eclipsed window");
-  keys.add("compulsory", "BETA", "0.08",
+  keys.add("compulsory", "BETA", "0.06",
            "width of the staggered-count sigmoids (cubic at 4, hexagonal at 3)");
   keys.add("compulsory", "BETA_E", "0.10", "width of the eclipsed-count sigmoid");
   keys.add("compulsory", "TAIL_C", "-0.65",
            "centre of the soft staggered weight, between a liquid correlation and -0.8");
   keys.add("compulsory", "TAIL_W", "0.20", "width of the soft staggered weight in c_ij");
   keys.add("compulsory", "TAIL_N", "4.0",
-           "soft-count scale. The tail is 1 - exp(-n / TAIL_N). Four saturated bonds do not reach 1");
-  keys.add("compulsory", "COORD_W", "0.45",
+           "soft-count scale. The tail is 1 - exp(-n / TAIL_N)");
+  keys.add("compulsory", "TAIL_AMP", "0.65",
+           "ceiling of the soft channel, so a liquid cannot outscore a small nucleus");
+  keys.add("compulsory", "COORD_W", "0.70",
            "width of the Gaussian that is 1 when the smooth neighbour count is 4");
   keys.add("compulsory", "LENGTH_SCALE", "10.0",
            "factor from the PLUMED length unit to Angstrom (10 for nm, 1 after UNITS LENGTH=A)");
@@ -152,6 +155,7 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   parse("TAIL_C", par_.tailCenter);
   parse("TAIL_W", par_.tailWidth);
   parse("TAIL_N", par_.tailN);
+  parse("TAIL_AMP", par_.tailAmp);
   parse("COORD_W", par_.coordWidth);
   parse("LENGTH_SCALE", lengthScale_);
   checkRead();
@@ -159,8 +163,9 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
     error("require 0 < D_0 < D_MAX");
   }
   if (!(par_.width > 0.0) || !(par_.widthE > 0.0) || !(par_.beta > 0.0) || !(par_.betaE > 0.0) ||
-      !(par_.tailWidth > 0.0) || !(par_.tailN > 0.0) || !(par_.coordWidth > 0.0) || !(lengthScale_ > 0.0)) {
-    error("WIDTH, ECL_WIDTH, BETA, BETA_E, TAIL_W, TAIL_N, COORD_W and LENGTH_SCALE must be positive");
+      !(par_.tailWidth > 0.0) || !(par_.tailN > 0.0) || !(par_.tailAmp > 0.0) || !(par_.coordWidth > 0.0) ||
+      !(lengthScale_ > 0.0)) {
+    error("WIDTH, ECL_WIDTH, BETA, BETA_E, TAIL_W, TAIL_N, TAIL_AMP, COORD_W and LENGTH_SCALE must be positive");
   }
   nAtom_ = static_cast<int>(atoms.size());
   addValueWithDerivatives();
@@ -172,9 +177,9 @@ DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
   log.printf("  published counts, softened: cubic at 4 staggered, hexagonal at 3 staggered "
              "plus 1 eclipsed; count widths %.3f and %.3f\n",
              par_.beta, par_.betaE);
-  log.printf("  soft staggered tail centred at %.3f width %.3f, count scale %.3f; "
-             "neighbour-count gate width %.3f around 4\n",
-             par_.tailCenter, par_.tailWidth, par_.tailN, par_.coordWidth);
+  log.printf("  soft staggered tail centred at %.3f width %.3f, count scale %.3f, "
+             "ceiling %.3f; neighbour-count gate width %.3f around 4\n",
+             par_.tailCenter, par_.tailWidth, par_.tailN, par_.tailAmp, par_.coordWidth);
   log.printf("  Verlet neighbour list with skin %.2f A, rebuilt when an atom moves "
              "by half of that; Y_3m gradient is analytic\n",
              skin_);
