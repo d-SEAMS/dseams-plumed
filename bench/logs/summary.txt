@@ -1,0 +1,9 @@
+one thread, 4096 mW ice Ic, LAMMPS units real, timestep 5 fs
+PLUMED forward-loop average is the collective-variable evaluation
+smooth has a restraint, so it is evaluated every step
+smooth plumed_avg_ms mean 3.0828 stdev 0.1707 reps 6 steps 40
+smooth loop_ms mean 5.3232 stdev 0.3370
+q6 loop_ms mean 511.8756 stdev 9.0202 reps 6 steps 16
+localq6 loop_ms mean 6544.8167 stdev 150.7162 reps 6 steps 6
+envsim loop_ms mean 224.2463 stdev 3.6412 reps 6 steps 16
+baseline loop without PLUMED was 1.91 ms/step
