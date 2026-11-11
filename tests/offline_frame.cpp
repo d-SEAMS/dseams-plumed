@@ -183,11 +183,33 @@ int checkYlm() {
     if (x * x + y * y + z * z < 1e-4) {
       continue;
     }
-    const auto got = dseams::smooth_detail::ylm3(x, y, z);
+    double re[7];
+    double im[7];
+    dseams::smooth_detail::ylm3Value(x, y, z, re, im);
     const auto ref = sph::spheriHarmo(3, sph::radialCoord({x, y, z}));
     for (int m = 0; m < 7; m++) {
-      worst = std::max(worst, std::abs(got.re[m] - ref[static_cast<std::size_t>(m)].real()));
-      worst = std::max(worst, std::abs(got.im[m] - ref[static_cast<std::size_t>(m)].imag()));
+      worst = std::max(worst, std::abs(re[m] - ref[static_cast<std::size_t>(m)].real()));
+      worst = std::max(worst, std::abs(im[m] - ref[static_cast<std::size_t>(m)].imag()));
+    }
+    if (x * x + y * y > 1e-6) {
+      dseams::smooth_detail::Ylm3 grad;
+      dseams::smooth_detail::ylm3ValueGrad(x, y, z, grad);
+      const double h = 1e-6;
+      for (int k = 0; k < 3; k++) {
+        double plus[3] = {x, y, z};
+        double minus[3] = {x, y, z};
+        plus[k] += h;
+        minus[k] -= h;
+        double rp[7], ip[7], rm[7], imn[7];
+        dseams::smooth_detail::ylm3Value(plus[0], plus[1], plus[2], rp, ip);
+        dseams::smooth_detail::ylm3Value(minus[0], minus[1], minus[2], rm, imn);
+        for (int m = 0; m < 7; m++) {
+          const double fdRe = (rp[m] - rm[m]) / (2.0 * h);
+          const double fdIm = (ip[m] - imn[m]) / (2.0 * h);
+          worst = std::max(worst, std::abs(fdRe - grad.dre[m][k]));
+          worst = std::max(worst, std::abs(fdIm - grad.dim[m][k]));
+        }
+      }
     }
     ++tested;
   }

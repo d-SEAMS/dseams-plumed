@@ -270,7 +270,7 @@ steps, and every 100 steps:
 | collective variable | every step | every 10 | every 100 | one evaluation |
 | DSEAMS_CHILL | 4.6 ms | 0.65 ms | 0.20 ms | 4.6 ms |
 | DSEAMS_RINGS | 5.4 ms | 0.82 ms | 0.20 ms | 5.3 ms |
-| DSEAMS_SMOOTH_CHILL | 47 ms | 4.8 ms | 0.57 ms | 47 ms |
+| DSEAMS_SMOOTH_CHILL | 1.9 ms | 0.28 ms | 0.07 ms | 2.3 ms |
 | Q6 MEAN | 0.51 s | 51 ms | 5.1 ms | 0.51 s |
 | LOCAL_Q6 MEAN | 6.4 s | 0.64 s | 64 ms | 6.5 s |
 | ENVIRONMENTSIMILARITY DIAMOND | 0.22 s | 22 ms | 2.2 ms | 0.22 s |
@@ -281,9 +281,13 @@ module, and they need the adjmat contact matrix. ENVIRONMENTSIMILARITY
 is the crystallization environment comparison, now the envsim module,
 pointed at cubic diamond with the ice Ic lattice constant. On this
 crystal the published fraction stays 1, the smooth value stays 0.997,
-and the ring census is 8192 primitive six-rings. PRINT stride is the
-evaluation interval: PLUMED skips the calculation on the steps in
-between, and the extra time per step falls by that factor.
+and the ring census is 8192 primitive six-rings. The smooth row is the
+value only. With a restraint, so the analytic derivative is required,
+one evaluation is 4.5 ms, the same as the discrete count. The
+neighbour list is kept between steps and Y_3m is differentiated in
+closed form. PRINT stride is the evaluation interval: PLUMED skips the
+calculation on the steps in between, and the extra time per step falls
+by that factor.
 
 * Changelog
 
