@@ -1,0 +1,7 @@
+# Oxygens are the first atom of each 4-site TIP4P/Ice molecule.
+# Lengths below are nanometres, so LENGTH_SCALE converts them to Angstrom.
+UNITS LENGTH=nm
+LOAD FILE=../../build/libdseams_plumed.so
+ice: DSEAMS_SMOOTH_CHILL ATOMS=1-128:4 D_0=0.26 D_MAX=0.34 WIDTH=0.12 BETA=0.35 LENGTH_SCALE=10.0
+res: RESTRAINT ARG=ice AT=0.3 KAPPA=50.0
+PRINT ARG=ice,res.bias STRIDE=5 FILE=COLVAR

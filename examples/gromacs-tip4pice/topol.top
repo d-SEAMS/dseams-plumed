@@ -1,0 +1,17 @@
+; 32 TIP4P/Ice waters. Parameters are in tip4pice.itp.
+
+[ defaults ]
+1 2 yes 0.5 0.8333
+
+[ atomtypes ]
+OW  8  15.9994   0.0000  A  0.31668  0.882164
+HW  1   1.0080   0.5897  A  0.00000  0.000000
+MW  0   0.0000  -1.1794  D  0.00000  0.000000
+
+#include "tip4pice.itp"
+
+[ system ]
+tip4p ice box
+
+[ molecules ]
+SOL 32

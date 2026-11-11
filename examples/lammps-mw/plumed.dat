@@ -1,0 +1,7 @@
+# Smooth CHILL+ ice fraction on 64 mW molecules. Lengths are Angstrom.
+# Point LOAD at the built module.
+UNITS LENGTH=A
+LOAD FILE=../../build/libdseams_plumed.so
+ice: DSEAMS_SMOOTH_CHILL ATOMS=1-64 D_0=2.6 D_MAX=3.4 WIDTH=0.12 BETA=0.35 LENGTH_SCALE=1.0
+res: RESTRAINT ARG=ice AT=0.4 KAPPA=80.0
+PRINT ARG=ice,res.bias,res.force2 STRIDE=10 FILE=COLVAR
