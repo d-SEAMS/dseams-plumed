@@ -22,6 +22,6 @@ catch2 = ">=3.6.0,<4"
 git = "*"
 
 [tasks]
-setup = "meson setup build --buildtype=release"
+setup = "meson setup build --buildtype=release --force-fallback-for=seams-core"
 build = { cmd = "meson compile -C build", depends-on = ["setup"] }
 test = { cmd = "meson test -C build --print-errorlogs", depends-on = ["build"] }

@@ -3,11 +3,15 @@ project('dseams-plumed', 'cpp',
   license: 'MIT',
   default_options: ['cpp_std=c++20', 'buildtype=release', 'warning_level=2'])
 
-# The engine: an installed seams-core (pkg-config) or the wrap
-yds_dep = dependency('seams-core', required: false)
-if not yds_dep.found()
-  yds_dep = dependency('seams-core', fallback: ['seams-core', 'yds_dep'])
-endif
+# The engine: an installed seams-core (pkg-config) or the wrap.
+# The wrap is HaoZeke/seams-core chill-plus/published-rule-pr, which is the
+# tree that distinguishes the published Nguyen and Molinero rule from
+# ovito-chill+. --force-fallback-for=seams-core selects it over an older
+# installed copy. The engine tests are not built. The CLI stays on because
+# the language bindings refer to it.
+yds_dep = dependency('seams-core',
+  fallback: ['seams-core', 'yds_dep'],
+  default_options: ['with_tests=false', 'with_cli=true'])
 
 # PLUMED headers come from the installed plumed; the kernel resolves the
 # symbols when LOAD dlopens the module, so nothing is linked here
@@ -21,12 +25,21 @@ message('plumed include dir: ' + plumed_inc)
 # -isystem strings rather than include_directories(): the pixi environment
 # that holds plumed can live inside this source tree, which meson refuses
 # to reference through include_directories
-mod = shared_module('dseams_plumed', 'src/DseamsCages.cpp',
+mod = shared_module('dseams_plumed',
+  'src/DseamsCages.cpp',
+  'src/DseamsChill.cpp',
+  'src/DseamsRings.cpp',
+  'src/DseamsSmooth.cpp',
   dependencies: [yds_dep],
   cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN'],
   name_prefix: 'lib',
   install: true,
   install_dir: get_option('libdir'))
+
+offline = executable('dseams_offline', 'tests/offline_frame.cpp',
+  dependencies: [yds_dep],
+  include_directories: include_directories('src'),
+  install: false)
 
 pymod = import('python').find_installation('python3', required: false)
 if pymod.found()
@@ -55,4 +68,14 @@ if pymod.found()
              plumed.full_path(), mod.full_path(), seams_cli.full_path()],
       timeout: 600)
   endif
+  test('driver_chill',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'chill_match.py',
+           plumed.full_path(), mod.full_path(), offline.full_path()],
+    timeout: 1800)
+  test('driver_smooth',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'smooth_check.py',
+           plumed.full_path(), mod.full_path()],
+    timeout: 1800)
 endif

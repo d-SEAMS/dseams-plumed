@@ -1,0 +1,19 @@
+# CHILL+ ice fraction and primitive ring counts.
+# fraction, the class counts and the ring counts have no derivatives
+# (PRINT, COMMITTOR, analysis). The smooth value is the one to bias:
+# it is a soft staggered-bond score, not the published label.
+UNITS LENGTH=A
+LOAD FILE=libdseams_plumed.so
+
+ice: DSEAMS_CHILL ATOMS=1-4096 CUTOFF=3.5 LENGTH_SCALE=1.0
+PRINT ARG=ice.fraction,ice.ncubic,ice.nhex,ice.ninterfacial,ice.nmax STRIDE=100 FILE=ICE
+
+ovito: DSEAMS_CHILL ATOMS=1-4096 RULE=ovito-chill+ LENGTH_SCALE=1.0
+PRINT ARG=ovito.fraction,ovito.ninterfacial STRIDE=100 FILE=OVITO
+
+rings: DSEAMS_RINGS ATOMS=1-4096 CUTOFF=3.5 MAX=6 LENGTH_SCALE=1.0
+PRINT ARG=rings.n5,rings.n6 STRIDE=100 FILE=RINGS
+
+smooth: DSEAMS_SMOOTH_CHILL ATOMS=1-4096 D_0=3.2 D_MAX=3.5 LENGTH_SCALE=1.0
+metad: METAD ARG=smooth SIGMA=0.05 HEIGHT=0.2 PACE=500 GRID_MIN=0 GRID_MAX=1 GRID_BIN=200 FILE=HILLS
+PRINT ARG=smooth,metad.bias STRIDE=100 FILE=COLVAR
