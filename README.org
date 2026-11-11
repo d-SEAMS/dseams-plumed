@@ -24,9 +24,9 @@ COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_U
 * Install
 
 Build the shared module against an installed PLUMED. Meson runs
-=plumed info --include-dir= for the headers. The kernel resolves the
-symbols when =LOAD= dlopens the file, so the module does not link
-against libplumed. An installed =seams-core= (=pkg-config seams-core=)
+=plumed info --include-dir= for the headers. The module links
+=libplumedKernel=, which is what a GROMACS build needs when it dlopens
+PLUMED locally. An installed =seams-core= (=pkg-config seams-core=)
 supplies the engine; the wrap is the fallback.
 
 With pixi (plumed, compilers, meson):
@@ -284,11 +284,29 @@ crystal the published fraction stays 1, the smooth value stays 0.997,
 and the ring census is 8192 primitive six-rings. A restraint on the
 smooth fraction forces an evaluation every step, so the 10- and
 100-step intervals do not apply to it. Six repeats on one thread put
-that evaluation at 3.08 ms (the earlier build was 4.5 ms). Raw lines
-from those runs are under =bench/logs/=. PRINT stride is the evaluation
+that evaluation at 3.08 ms (the earlier build was 4.5 ms). The same
+restraint on eight threads, the width PLUMED reports as =NUM_THREADS=,
+is 1.18 ms. At 32768 molecules the evaluation is 30.3 ms on one thread
+and 10.8 ms on eight. One thread and eight threads write the same bits.
+Raw lines are under =bench/logs/= and =bench/logs/threads/=.
+
+| molecules | threads | evaluation |
+| 4096 | 1 | 3.08 ms |
+| 4096 | 8 | 1.18 ms |
+| 32768 | 1 | 30.3 ms |
+| 32768 | 8 | 10.8 ms |
+
+PRINT stride is the evaluation
 interval when nothing else asks for the value: PLUMED skips the
 calculation on the steps in between, and the extra time per step falls
 by that factor.
+
+A 512-molecule mW box with a crystalline core in liquid water, run for
+20 ps at 210 K, is under =examples/lammps-mw-freeze/=. A moving
+restraint on the smooth fraction takes the published ice fraction from
+0.07 to 0.32. On one thread the wall time per step is 0.78 ms with no
+collective variable, 1.49 ms with the smooth fraction, 81 ms biased on
+=ENVIRONMENTSIMILARITY=, and 323 ms biased on =Q6 MEAN=.
 
 * Changelog
 
