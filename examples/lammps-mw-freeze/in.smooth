@@ -1,4 +1,4 @@
-# 512 mW, 20 ps at 210 K. A moving restraint drives the smooth ice fraction.
+# 512 mW. The restraint drives the published ice fraction through 0.9.
 units real
 atom_style atomic
 boundary p p p
@@ -8,8 +8,8 @@ pair_style sw
 pair_coeff * * mW.sw mW
 neighbor 2.0 bin
 timestep 10.0
-velocity all create 210.0 21 dist gaussian
+velocity all create 230.0 2 dist gaussian
 fix pl all plumed plumedfile plumed.smooth outfile plumed.out
-fix npt all npt temp 210.0 210.0 200.0 iso 1.0 1.0 2000.0
-thermo 2000
-run 2000
+fix npt all npt temp 230.0 230.0 200.0 iso 1.0 1.0 2000.0
+thermo 4000
+run 12000

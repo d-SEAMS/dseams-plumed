@@ -27,3 +27,18 @@ stored. One such run:
 
 The published CHILL+ fraction is monitored. It has no derivative. The
 restraint acts on the smooth fraction.
+
+`plumed-metad.dat` and `md-metad.mdp` are 2 ns of well-tempered
+metadynamics on the same slab at 210 K (height 1.5 kJ/mol, sigma 0.03,
+bias factor 15, a hill every 1 ps). `fes.dat` is the free energy from
+`plumed sum_hills`, shifted so the minimum is zero.
+
+| smooth fraction | free energy / kJ mol^-1 |
+| ---: | ---: |
+| 0.35 | 107 |
+| 0.46 | 97 |
+| 0.58 | 61 |
+| 0.69 | 34 |
+| 0.81 | 22 |
+| 0.92 | 0 |
+| 0.98 | 60 |

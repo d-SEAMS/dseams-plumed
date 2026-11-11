@@ -116,14 +116,15 @@ PRINT ARG=ovito.fraction,ovito.ninterfacial STRIDE=100 FILE=OVITO
 
 =DSEAMS_SMOOTH_CHILL= is the collective variable to bias. It keeps the
 q_3 correlation of CHILL+ and replaces the hard cutoff and the hard
-staggered threshold by a cubic switch (=D_0= to =D_MAX=, default 3.2 A
-and 3.5 A) and a sigmoid centred on -0.8. A molecule scores by a second
-sigmoid of its staggered-bond count, centred at 2.2, so cubic ice (four
-staggered bonds) and hexagonal ice (three) both sit near one and a
-liquid sits near zero. The value is the mean of the molecule scores.
-Derivatives are analytic. On ideal ice Ic, with the switch wrapped
-around the first shell, the correlations match the published rule; the
-value is still not the published fraction, because the steps are soft.
+thresholds by smooth steps at the published values. A bond is staggered
+below -0.8 and eclipsed between -0.35 and 0.25. A molecule scores by a
+soft OR of the published counts: four staggered neighbours (cubic), or
+three staggered and one eclipsed (hexagonal). The value is the mean
+molecule score. Derivatives are analytic. On a ladder of ice Ic slabs
+the smooth fraction tracks the published one with an rms residual of
+0.010, and it does not decrease as the published fraction increases.
+Ideal ice Ih scores 0.984 where the published fraction is 1. The fit
+is =docs/smooth-fit.png=.
 
 #+begin_src plumed
 UNITS LENGTH=A
@@ -270,7 +271,7 @@ steps, and every 100 steps:
 | collective variable | every step | every 10 | every 100 | one evaluation |
 | DSEAMS_CHILL | 4.6 ms | 0.65 ms | 0.20 ms | 4.6 ms |
 | DSEAMS_RINGS | 5.4 ms | 0.82 ms | 0.20 ms | 5.3 ms |
-| DSEAMS_SMOOTH_CHILL, with the restraint | 3.1 ms | evaluated every step | evaluated every step | 3.1 ms |
+| DSEAMS_SMOOTH_CHILL, with the restraint | 2.6 ms | evaluated every step | evaluated every step | 2.6 ms |
 | Q6 MEAN | 0.51 s | 51 ms | 5.1 ms | 0.51 s |
 | LOCAL_Q6 MEAN | 6.4 s | 0.64 s | 64 ms | 6.5 s |
 | ENVIRONMENTSIMILARITY DIAMOND | 0.22 s | 22 ms | 2.2 ms | 0.22 s |
@@ -280,33 +281,31 @@ the crystallization module. In PLUMED 2.10 they are the symfunc
 module, and they need the adjmat contact matrix. ENVIRONMENTSIMILARITY
 is the crystallization environment comparison, now the envsim module,
 pointed at cubic diamond with the ice Ic lattice constant. On this
-crystal the published fraction stays 1, the smooth value stays 0.997,
+crystal the published fraction stays 1, the smooth value stays 0.989,
 and the ring census is 8192 primitive six-rings. A restraint on the
 smooth fraction forces an evaluation every step, so the 10- and
-100-step intervals do not apply to it. Six repeats on one thread put
-that evaluation at 3.08 ms (the earlier build was 4.5 ms). The same
-restraint on eight threads, the width PLUMED reports as =NUM_THREADS=,
-is 1.18 ms. At 32768 molecules the evaluation is 30.3 ms on one thread
-and 10.8 ms on eight. One thread and eight threads write the same bits.
-Raw lines are under =bench/logs/= and =bench/logs/threads/=.
+100-step intervals do not apply to it. Six repeats, PLUMED's own
+forward-loop average, one thread and eight (=NUM_THREADS=). The two
+counts agree bit for bit. Raw lines are under =bench/logs/threads/=.
 
-| molecules | threads | evaluation |
-| 4096 | 1 | 3.08 ms |
-| 4096 | 8 | 1.18 ms |
-| 32768 | 1 | 30.3 ms |
-| 32768 | 8 | 10.8 ms |
+| molecules | 1 thread | 8 threads |
+| 4096 | 2.64 ms | 1.05 ms |
+| 32768 | 24.4 ms | 9.21 ms |
+
+The minimum step in those logs, after the neighbour list has been
+built, is 19.5 ms and 5.1 ms at 32768 (3.8 times). The force loop
+scales; the gather of Y_3m onto each molecule does not.
 
 PRINT stride is the evaluation
 interval when nothing else asks for the value: PLUMED skips the
 calculation on the steps in between, and the extra time per step falls
 by that factor.
 
-A 512-molecule mW box with a crystalline core in liquid water, run for
-20 ps at 210 K, is under =examples/lammps-mw-freeze/=. A moving
-restraint on the smooth fraction takes the published ice fraction from
-0.07 to 0.32. On one thread the wall time per step is 0.78 ms with no
-collective variable, 1.49 ms with the smooth fraction, 81 ms biased on
-=ENVIRONMENTSIMILARITY=, and 323 ms biased on =Q6 MEAN=.
+A 512-molecule mW box with a crystalline core in liquid water is under
+=examples/lammps-mw-freeze/=. At 230 K a moving restraint takes the
+published ice fraction through 0.9 in 54 to 64 ps over three velocity
+seeds. A 2 ns well-tempered metadynamics of the same collective
+variable on the TIP4P/Ice slab is =examples/gromacs-tip4pice/plumed-metad.dat=.
 
 * Changelog
 
