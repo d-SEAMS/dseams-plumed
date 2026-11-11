@@ -28,17 +28,31 @@ stored. One such run:
 The published CHILL+ fraction is monitored. It has no derivative. The
 restraint acts on the smooth fraction.
 
-`plumed-metad.dat` and `md-metad.mdp` are 2 ns of well-tempered
-metadynamics on the same slab at 210 K (height 1.5 kJ/mol, sigma 0.03,
-bias factor 15, a hill every 1 ps). `fes.dat` is the free energy from
-`plumed sum_hills`, shifted so the minimum is zero.
+`plumed-metad.dat` and `md-metad.mdp` are well-tempered metadynamics
+on the same slab (height 1.5 kJ/mol, sigma 0.03, bias factor 15, a
+hill every 1 ps). `fes.dat` is the 2 ns free energy from
+`plumed sum_hills` at 210 K, shifted so the minimum is zero.
 
-| smooth fraction | free energy / kJ mol^-1 |
-| ---: | ---: |
-| 0.35 | 107 |
-| 0.46 | 97 |
-| 0.58 | 61 |
-| 0.69 | 34 |
-| 0.81 | 22 |
-| 0.92 | 0 |
-| 0.98 | 60 |
+The minimum moves as the hills accumulate. Each column below is a
+`sum_hills` profile shifted so its own minimum is zero. The last two
+columns are a block estimate: the 2 ns trajectory split into four
+500 ps blocks, reweighted by exp(V/kT), with the standard error of
+the mean across blocks that visited the bin.
+
+| smooth fraction | 0.5 ns | 1 ns | 2 ns | block mean | stderr |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 0.40 | 72 | 81 | 106 |  |  |
+| 0.70 | 0 | 9 | 33 | 0.7 |  |
+| 0.80 | 51 | 4 | 24 | 20 | 11 |
+| 0.84 | 69 | 0 | 13 | 7 | 3 |
+| 0.92 |  | 51 | 0 | 0.6 |  |
+| 0.98 |  | 81 | 54 |  |  |
+
+The minimum sits at 0.69 after 0.5 ns, 0.83 after 1 ns and 0.92 after
+2 ns. The 1.0-1.5 ns block and the 1.5-2.0 ns block both put it near
+0.91. `fes-conv.dat` and `docs/smooth-fes-conv.png` are the full curves.
+
+A second walk of the same slab at 330 K, above the TIP4P/Ice melting
+point, is the liquid control. After 1.5 ns the collective variable
+sits at 0.001 and the `sum_hills` minimum is at fraction 0.005
+(`fes-330K.dat`). The ice well is gone.

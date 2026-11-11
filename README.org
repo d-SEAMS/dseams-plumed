@@ -285,16 +285,19 @@ crystal the published fraction stays 1, the smooth value stays 0.989,
 and the ring census is 8192 primitive six-rings. A restraint on the
 smooth fraction forces an evaluation every step, so the 10- and
 100-step intervals do not apply to it. Six repeats, PLUMED's own
-forward-loop average, one thread and eight (=NUM_THREADS=). The two
+forward-loop time, one thread and eight (=NUM_THREADS=). The two
 counts agree bit for bit. Raw lines are under =bench/logs/threads/=.
+The average includes the neighbour-list rebuild. The steady column is
+the minimum step, after that rebuild.
 
-| molecules | 1 thread | 8 threads |
-| 4096 | 2.64 ms | 1.05 ms |
-| 32768 | 24.4 ms | 9.21 ms |
+| molecules | 1 thread average | 8 thread average | 1 thread steady | 8 thread steady |
+| 4096 | 2.86 ms | 0.91 ms | 2.32 ms | 0.56 ms |
+| 32768 | 24.7 ms | 6.90 ms | 20.3 ms | 3.81 ms |
 
-The minimum step in those logs, after the neighbour list has been
-built, is 19.5 ms and 5.1 ms at 32768 (3.8 times). The force loop
-scales; the gather of Y_3m onto each molecule does not.
+At 32768 the steady step is 5.3 times faster on 8 threads. Y_3m is
+summed from a molecule-major copy of the neighbour list, and the
+molecule scores and the virial are eight partials folded in a fixed
+order, so the bits do not depend on the thread count.
 
 PRINT stride is the evaluation
 interval when nothing else asks for the value: PLUMED skips the
@@ -304,8 +307,14 @@ by that factor.
 A 512-molecule mW box with a crystalline core in liquid water is under
 =examples/lammps-mw-freeze/=. At 230 K a moving restraint takes the
 published ice fraction through 0.9 in 54 to 64 ps over three velocity
-seeds. A 2 ns well-tempered metadynamics of the same collective
-variable on the TIP4P/Ice slab is =examples/gromacs-tip4pice/plumed-metad.dat=.
+seeds. Well-tempered metadynamics of the same collective variable on
+the TIP4P/Ice slab is =examples/gromacs-tip4pice/=. At 210 K the free-energy
+minimum moves from fraction 0.69 at 0.5 ns to 0.83 at 1 ns and 0.92 at
+2 ns. At 330 K, above the melting point, the minimum is at 0.005.
+An OpenMM TIP4P-Ew run is =examples/openmm-tip4pew/=. The actions and
+their keywords are in =docs/manual.txt=. The sources live in
+=plumed/dseams/= with =module.type= set to default-off, which is the
+directory PLUMED expects under =src/=.
 
 * Changelog
 
