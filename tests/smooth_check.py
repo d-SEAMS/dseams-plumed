@@ -147,7 +147,7 @@ def main():
         if seen == 0:
             sys.stderr.write(body[-4000:])
             raise SystemExit("debug-forces produced no comparison")
-        if worst > 1e-3:
+        if worst > 1e-4:
             sys.stderr.write(body[-4000:])
             raise SystemExit(f"analytic derivative mismatch {worst}")
 

@@ -60,7 +60,9 @@ PRINT ARG=ice,metad.bias STRIDE=100 FILE=COLVAR
 class DseamsSmooth : public Colvar {
   dseams::SmoothParams par_;
   double lengthScale_ = 10.0;
-  double skin_ = 2.0; // Angstrom, list extends this far past D_MAX
+  // Half a skin of motion cannot bring the second ice shell (about 4.5 A)
+  // inside D_MAX before the list is rebuilt.
+  double skin_ = 0.9;
   int nAtom_ = 0;
   bool haveList_ = false;
   double listBox_[9] = {};
@@ -283,6 +285,8 @@ void DseamsSmooth::calculate() {
   }
   const double dmax2 = par_.dmax * par_.dmax;
   const double scale = lengthScale_;
+  // Minimum image from PLUMED, including a tilted box. A hand-rolled
+  // orthorhombic image disagrees with that derivative at the 1e-4 level.
   for (std::size_t n = 0; n < listI_.size(); n++) {
     const int i = listI_[n];
     const int j = listJ_[n];

@@ -50,18 +50,17 @@ struct Ylm3 {
   double dim[7][3] = {};
 };
 
-inline void ylmNorms(double n[4]) {
+inline const double *ylmNorms() {
   constexpr double pi = 3.14159265358979323846;
-  n[0] = 0.25 * std::sqrt(7.0 / pi);
-  n[1] = 0.125 * std::sqrt(21.0 / pi);
-  n[2] = 0.25 * std::sqrt(105.0 / (2.0 * pi));
-  n[3] = 0.125 * std::sqrt(35.0 / pi);
+  static const double n[4] = {0.25 * std::sqrt(7.0 / pi), 0.125 * std::sqrt(21.0 / pi),
+                              0.25 * std::sqrt(105.0 / (2.0 * pi)),
+                              0.125 * std::sqrt(35.0 / pi)};
+  return n;
 }
 
 // Value of Y_3m, m = -3..+3. Matches seams-core sph::spheriHarmo for l = 3.
 inline void ylm3Value(double x, double y, double z, double re[7], double im[7]) {
-  double nrm[4];
-  ylmNorms(nrm);
+  const double *nrm = ylmNorms();
   const double r = std::sqrt(x * x + y * y + z * z);
   const double rho2 = x * x + y * y;
   const double rho = std::sqrt(rho2 + 1e-30);
@@ -101,8 +100,7 @@ inline void ylm3Value(double x, double y, double z, double re[7], double im[7]) 
 // 1e-30 floor under the cylindrical radius and a zero azimuthal derivative
 // on the z axis.
 inline void ylm3ValueGrad(double x, double y, double z, Ylm3 &out) {
-  double nrm[4];
-  ylmNorms(nrm);
+  const double *nrm = ylmNorms();
   const double r2 = x * x + y * y + z * z;
   const double r = std::sqrt(r2);
   const double rho2 = x * x + y * y;
@@ -215,7 +213,8 @@ struct Edge {
   double c = 0.0;
   double s = 0.0;
   double dsdc = 0.0;
-  Ylm3 y;
+  double re[7] = {};
+  double im[7] = {};
 };
 
 } // namespace smooth_detail
@@ -236,12 +235,15 @@ public:
       return;
     }
     edges_.clear();
+    ygrad_.clear();
     if (edges_.capacity() < pairs.size() * 2) {
       edges_.reserve(pairs.size() * 2);
     }
+    if (wantDeriv && ygrad_.capacity() < pairs.size() * 2) {
+      ygrad_.reserve(pairs.size() * 2);
+    }
     for (const auto &p : pairs) {
-      push(p.i, p.j, p.dx, p.dy, p.dz, par, wantDeriv);
-      push(p.j, p.i, -p.dx, -p.dy, -p.dz, par, wantDeriv);
+      pushPair(p.i, p.j, p.dx, p.dy, p.dz, par, wantDeriv);
     }
     std::fill(coord_.begin(), coord_.end(), 0.0);
     for (auto &u : U_) {
@@ -251,8 +253,8 @@ public:
       coord_[static_cast<std::size_t>(e.i)] += e.sigma;
       auto &u = U_[static_cast<std::size_t>(e.i)];
       for (int m = 0; m < 7; m++) {
-        u.re[m] += e.sigma * e.y.re[m];
-        u.im[m] += e.sigma * e.y.im[m];
+        u.re[m] += e.sigma * e.re[m];
+        u.im[m] += e.sigma * e.im[m];
       }
     }
     std::fill(norm2_.begin(), norm2_.end(), 0.0);
@@ -362,7 +364,7 @@ public:
       double gsig = gns * e.s + gZ_[static_cast<std::size_t>(e.i)];
       const auto &gu = gU_[static_cast<std::size_t>(e.i)];
       for (int m = 0; m < 7; m++) {
-        gsig += gu.re[m] * e.y.re[m] + gu.im[m] * e.y.im[m];
+        gsig += gu.re[m] * e.re[m] + gu.im[m] * e.im[m];
       }
       double g[3] = {0.0, 0.0, 0.0};
       const double r = std::sqrt(e.dx * e.dx + e.dy * e.dy + e.dz * e.dz);
@@ -372,11 +374,12 @@ public:
         g[1] += gr * e.dy / r;
         g[2] += gr * e.dz / r;
       }
+      const auto &yy = ygrad_[static_cast<std::size_t>(&e - edges_.data())];
       for (int m = 0; m < 7; m++) {
         const double gyRe = gu.re[m] * e.sigma;
         const double gyIm = gu.im[m] * e.sigma;
         for (int k = 0; k < 3; k++) {
-          g[k] += gyRe * e.y.dre[m][k] + gyIm * e.y.dim[m][k];
+          g[k] += gyRe * yy.dre[m][k] + gyIm * yy.dim[m][k];
         }
       }
       auto &gi = grad[static_cast<std::size_t>(e.i)];
@@ -415,31 +418,58 @@ private:
     grad.assign(nn, {0.0, 0.0, 0.0});
   }
 
-  void push(int i, int j, double dx, double dy, double dz, const SmoothParams &par, bool wantDeriv) {
+  // One Y_3m for the bond. l = 3 is odd, so the opposite direction is
+  // the negated harmonic and the same Cartesian gradient.
+  void pushPair(int i, int j, double dx, double dy, double dz, const SmoothParams &par,
+                bool wantDeriv) {
     const double r = std::sqrt(dx * dx + dy * dy + dz * dz);
     if (!(r > 1e-8) || r >= par.dmax) {
       return;
     }
-    smooth_detail::Edge e;
-    e.i = i;
-    e.j = j;
-    e.dx = dx;
-    e.dy = dy;
-    e.dz = dz;
-    e.sigma = smooth_detail::cubicSwitch(r, par.d0, par.dmax, e.dsdr);
-    if (e.sigma <= 0.0 && e.dsdr == 0.0) {
+    double dsdr = 0.0;
+    const double sigma = smooth_detail::cubicSwitch(r, par.d0, par.dmax, dsdr);
+    if (sigma <= 0.0 && dsdr == 0.0) {
       return;
     }
+    smooth_detail::Edge fwd;
+    fwd.i = i;
+    fwd.j = j;
+    fwd.dx = dx;
+    fwd.dy = dy;
+    fwd.dz = dz;
+    fwd.sigma = sigma;
+    fwd.dsdr = dsdr;
     if (wantDeriv) {
-      smooth_detail::ylm3ValueGrad(dx, dy, dz, e.y);
+      smooth_detail::Ylm3 y;
+      smooth_detail::ylm3ValueGrad(dx, dy, dz, y);
+      for (int m = 0; m < 7; m++) {
+        fwd.re[m] = y.re[m];
+        fwd.im[m] = y.im[m];
+      }
+      ygrad_.push_back(y);
     } else {
-      smooth_detail::ylm3Value(dx, dy, dz, e.y.re, e.y.im);
+      smooth_detail::ylm3Value(dx, dy, dz, fwd.re, fwd.im);
     }
-    edges_.push_back(e);
+    edges_.push_back(fwd);
+    smooth_detail::Edge rev = fwd;
+    rev.i = j;
+    rev.j = i;
+    rev.dx = -dx;
+    rev.dy = -dy;
+    rev.dz = -dz;
+    for (int m = 0; m < 7; m++) {
+      rev.re[m] = -fwd.re[m];
+      rev.im[m] = -fwd.im[m];
+    }
+    edges_.push_back(rev);
+    if (wantDeriv) {
+      ygrad_.push_back(ygrad_.back());
+    }
   }
 
   int n_ = -1;
   std::vector<smooth_detail::Edge> edges_;
+  std::vector<smooth_detail::Ylm3> ygrad_;
   std::vector<double> coord_;
   std::vector<double> norm2_;
   std::vector<double> ns_;
