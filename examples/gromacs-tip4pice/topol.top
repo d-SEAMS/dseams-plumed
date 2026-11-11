@@ -1,4 +1,4 @@
-; 32 TIP4P/Ice waters. Parameters are in tip4pice.itp.
+; 432 TIP4P/Ice waters. Parameters are in tip4pice.itp.
 
 [ defaults ]
 1 2 yes 0.5 0.8333
@@ -11,7 +11,7 @@ MW  0   0.0000  -1.1794  D  0.00000  0.000000
 #include "tip4pice.itp"
 
 [ system ]
-tip4p ice box
+TIP4P/Ice ice/liquid slab
 
 [ molecules ]
-SOL 32
+SOL 432
