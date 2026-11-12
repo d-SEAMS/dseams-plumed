@@ -1,10 +1,9 @@
-# Eight-walker well-tempered metadynamics. Copy once per walker and set
-# WALKERS_ID from 0 to 7. WALKERS_DIR is the shared hills directory.
-# One walker starts from a hot liquid. The default tail and the
-# neighbour-count gate are what give that walker a force.
+# Eight MPI ranks, one shared OPES bias. Launch with
+#   mpirun -np 8 gmx_mpi mdrun -s run.tpr -multidir w0 ... w7 -plumed plumed.dat
 # D_0 and D_MAX are Angstrom. LENGTH_SCALE converts nanometres.
-UNITS LENGTH=nm
+# The action is the capped smooth fraction (TAIL_AMP=0.65).
 LOAD FILE=../../build/libdseams_plumed.so
+UNITS LENGTH=nm
 ice: DSEAMS_SMOOTH_CHILL ATOMS=1-1728:4 D_0=3.2 D_MAX=3.5 LENGTH_SCALE=10.0
-metad: METAD ARG=ice SIGMA=0.06 HEIGHT=1.5 BIASFACTOR=200 TEMP=210 PACE=500 GRID_MIN=0 GRID_MAX=1 GRID_BIN=200 FILE=HILLS WALKERS_N=8 WALKERS_ID=0 WALKERS_DIR=hills WALKERS_RSTRIDE=500
-PRINT ARG=ice,metad.bias STRIDE=500 FILE=COLVAR
+opes: OPES_METAD ARG=ice TEMP=210 PACE=500 SIGMA=0.06 BARRIER=300 FILE=KERNELS WALKERS_MPI
+PRINT ARG=ice,opes.bias,opes.rct STRIDE=500 FILE=COLVAR

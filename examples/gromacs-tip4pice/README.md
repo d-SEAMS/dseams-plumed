@@ -57,79 +57,101 @@ point, is the liquid control. After 1.5 ns the collective variable
 sits at 0.001 and the `sum_hills` minimum is at fraction 0.005
 (`fes-330K.dat`). The ice well is gone.
 
-## Liquid slope
+## Liquid slope, capped
 
-The published count is flat in a fully liquid shell, so a restraint
-on that count alone does not nucleate. The smooth score adds two
-terms that are already one on a frozen molecule and still sloping in
-the liquid. `TAIL_C=-0.65` and `TAIL_W=0.20` put a second staggered
-weight between a liquid correlation and the published -0.8 edge, and
-the weight is still climbing at that edge, so four saturated soft
-bonds do not by themselves reach 1 (`TAIL_N=4`). `COORD_W=0.45` is a
-Gaussian in the smooth neighbour count, equal to 1 at the published
-shell of four.
+The published count is flat in a fully liquid shell. A second
+staggered weight (`TAIL_C=-0.65`, `TAIL_W=0.20`, `TAIL_N=4`) still
+has a slope there. Without a ceiling that weight let a liquid with
+no crystal outscore a seeded nucleus: the same restrained frame
+scored 0.34 at a published fraction of 0.04, while every seeded
+frame with a published fraction above 0.20 scored at most 0.29. The
+free-energy gap at 0.34–0.41 was that jump. `TAIL_AMP=0.65` caps the
+soft channel. `BETA=0.06` and `COORD_W=0.70` keep the crystal anchor.
 
-On the ideal ice Ic frame the score is 0.99544 against a published
-fraction of 1, residual -0.0046. On the thermal TIP4P/Ice crystal the
-score is 0.937 against a published fraction of 0.991, residual
--0.054. The root mean square of those two frozen residuals is 0.038.
-The hot liquid scores 0.096, with published fraction 0. A restraint
-from that liquid expands the box toward the ice density and raises
-the published fraction to about 0.04; it does not cross into the
-crystal basin on a 100 ps timescale.
+On ideal ice Ic the score is 0.99851 against a published fraction of
+1, residual -0.0015. On the thermal crystal it is 0.932 against
+0.991, residual -0.059. The root mean square of those two frozen
+residuals is 0.042. The hot liquid scores 0.083. The restrained
+frame that used to score 0.34 now scores 0.233, below the seeded
+frames with a published fraction above 0.20.
 
-## Eight walkers, 24 ns at 210 K, liquid included
+A clash-free spherical seed, 0 to 100% of the 432 molecules kept
+from the thermal crystal, was scored outside this tree. The smooth
+score and the published fraction on that series have correlation
+0.989. A seed that keeps 85% of the crystal scores 0.398 at a
+published fraction of 0.306, inside the old gap, and the series is
+ordered through it.
 
-Eight walkers share hills. Bias factor 200, sigma 0.06, height
-1.5 kJ/mol, one hill every 1 ps, 3 ns each (24 ns in total). One
-walker starts from the hot liquid and moves through 0.02–0.24. The
-others start from restrained intermediates and from the crystal. The
-water model is TIP4P/Ice.
+## Eight MPI walkers, shared OPES bias, 13 ns
 
-`fes-mw.dat` and `docs/fes-mw.png` are the free energy. Each column
-is zeroed at that column's minimum for fraction above 0.85. The band
-on the figure is the range of the 2.4, 2.7 and 3.0 ns profiles. No
-walker entered 0.34–0.41, and a restraint held at the low edge of
-that interval did not cross it in 40 ps, so the height of a barrier
-there is not measured. The figure leaves the interval blank. The
-rows of `fes-mw.dat` inside it are only the overlap of the two
-kernels.
+PLUMED 2.10.2 and GROMACS 2025.2 were built against the same Open
+MPI. `OPES_METAD` uses `WALKERS_MPI`, `SIGMA=0.06`, `BARRIER=300`,
+`PACE=500`, `TEMP=210`. `METAD` in the same binary accepts
+`WALKERS_MPI` as well. Eight ranks, one thread each, started at
+smooth scores 0.083, 0.161, 0.232, 0.309, 0.398, 0.531, 0.676 and
+0.932. The run is 13 ns. The eight COLVAR files (time, score, bias,
+rct) stay outside git. `scripts/fes_blocks.py` rebuilds the block
+table from them.
 
-| smooth fraction | F at 3.0 ns / kJ mol^-1 | range over 2.4–3.0 ns | per molecule / kJ mol^-1 |
-| ---: | ---: | ---: | ---: |
-| 0.10 | 129 | 12 | 0.30 |
-| 0.20 | 57 | 21 | 0.13 |
-| 0.28 | 22 | 11 | 0.05 |
-| 0.45 | 277 | 5 | 0.64 |
-| 0.70 | 117 | 1 | 0.27 |
-| 0.90 | 12 | 1 | 0.028 |
-| 0.935 | 0 | 0 | 0 |
+The reweighted free energy on the last 20% (10.4–13.0 ns) is split
+into five equal blocks. A bin needs at least 10 samples in a block.
+Each column is zeroed at its own minimum.
+Twelve bins are present in every block. Eight of those twelve move
+by less than 1 kJ/mol. The four that do not are fraction 0.250
+(span 1.79 kJ/mol), 0.370 (1.74), 0.890 (1.68) and 0.410 (1.10).
+The median span on the twelve bins is 0.53 kJ/mol. Bins that a block
+does not visit are left blank; the walkers do not put 10 samples in
+every 0.02-wide bin in every 520 ps block, so the grid from 0.10 to
+0.98 is not fully covered.
 
-The ice minimum stays at 0.935 from 2.4 ns onward. The low side has a
-well near 0.28. At 3.0 ns that well is 22 kJ/mol above the ice
-minimum. F(0.26) still moved by 16 kJ/mol over the preceding 0.6 ns,
-so the depth of the low well is not settled. F(0.45), on the crystal
-side of the empty interval, moved by 5 kJ/mol in that window.
+The ice well (lowest free energy in 0.90–0.98) minus the low well
+(lowest in 0.12–0.25) in the five blocks is -2.82, -2.94, -2.81,
+-3.19 and -3.23 kJ/mol. The range is 0.42 kJ/mol, under 1 kJ/mol.
+The mean is -3.00 kJ/mol for the box, -0.0069 kJ/mol per molecule.
+The ice well is the lower of the two.
 
-Per molecule of the 432-molecule box, the hot-liquid value (fraction
-0.10) sits 0.30 kJ/mol above the ice minimum, with a block range of
-0.03 kJ/mol. TIP4P/Ice (Abascal, Sanz, García Fernández and Vega,
-J. Chem. Phys. 122, 234511, 2005) melts at 272.2 K with an enthalpy of
-fusion of 1.29 kcal/mol (5.40 kJ/mol). Neglecting the heat-capacity
-difference, the bulk driving force at 210 K is about
-5.40*(1-210/272.2) = 1.23 kJ/mol per molecule. The 0.30 kJ/mol is
-smaller because fraction 0.10 to about 0.30 is mostly the soft tail:
-a restrained frame at 0.33 still has a published fraction near 0.04.
-From fraction 0.45, where a restrained frame has published fraction
-0.38, to the minimum is 277 kJ/mol for the box, 0.64 kJ/mol per
-molecule. Spread over the molecules that join the crystal between
-those two frames (published fraction 0.38 to 0.99) that is about
-1.05 kJ/mol per molecule that freezes, the same order as the 1.23
-kJ/mol estimate. The slab at fraction 0.45 is an interface, not a
-bulk liquid, and the heat-capacity term is not in the estimate.
+TIP4P/Ice (Abascal, Sanz, García Fernández and Vega, J. Chem. Phys.
+122, 234511, 2005) melts at 272.2 K with an enthalpy of fusion of
+1.29 kcal/mol (5.40 kJ/mol). Neglecting the heat-capacity difference,
+the bulk driving force at 210 K is about 1.23 kJ/mol per molecule.
+The collective-variable offset is about 180 times smaller. Three
+things sit between those numbers. The box has 432 molecules, so a
+single global fraction cannot separate bulk ice, bulk liquid and the
+interface; the free energy at a given score is the minimum over all
+structures with that score, and an interface-sized fluctuation costs
+far less than 432 times the bulk value. The low well is still a
+nearly unlabeled liquid (the seeded series puts a published fraction
+near 0.02 at smooth 0.19), not a bulk phase boundary. And the soft
+channel, even capped, still gives the liquid a slope, so part of the
+motion in the score is local bond rearrangement rather than a change
+of phase.
 
-## Equal wall time, best setup of each coordinate
+## Equal wall time, capped score against Q6
 
+Both start from the same slab. The smooth target is 0.932 with kappa
+8909, so the initial force is 4000 kJ/mol. Q6 uses
+`SWITCH={CUBIC D_0=0.32 D_MAX=0.35}`, `NL_CUTOFF=0.50` and
+`NL_STRIDE=10`. Its target is 0.584 with kappa 250000, the same
+initial force. The neighbour list is active: the log says the cutoff
+is 0.50 nm and the list is rebuilt every 10 steps. One job at a time,
+300 s of wall time, `mpirun -np 1`.
+
+| coordinate | threads | ns/day | simulated |
+| --- | ---: | ---: | ---: |
+| smooth, capped | 1 | 183 | 0.640 ns |
+| Q6 with a neighbour list | 1 | 7.44 | 26 ps |
+| smooth, capped | 8 | 542 | 1.90 ns |
+| Q6 with a neighbour list | 8 | 43.2 | 151 ps |
+
+At one thread the capped score is 25 times the Q6 throughput. At
+eight threads the ratio is 13. One thread gives 7.6 ns per CPU-hour
+for the smooth score and 0.31 for Q6. Eight threads give 2.8 and
+0.23 ns per CPU-hour.
+
+## Equal wall time on the uncapped tail
+
+The table below is the previous collective variable, with
+`TAIL_AMP=1`. It is not a timing of the capped score.
 Each run starts from the same slab (published fraction 0.403) and is
 stopped after 300 s of wall time. The restraint targets the thermal
 crystal value of that coordinate, with the initial force
