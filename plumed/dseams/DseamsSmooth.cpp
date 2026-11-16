@@ -4,6 +4,7 @@
 ** SPDX-License-Identifier: MIT
 */
 #include "colvar/Colvar.h"
+#include "config/version.h"
 #include "core/ActionRegister.h"
 #include "tools/OpenMP.h"
 
@@ -136,7 +137,10 @@ void DseamsSmooth::registerKeywords(Keywords &keys) {
            "width of the Gaussian that is 1 when the smooth neighbour count is 4");
   keys.add("compulsory", "LENGTH_SCALE", "10.0",
            "factor from the PLUMED length unit to Angstrom (10 for nm, 1 after UNITS LENGTH=A)");
+  // PLUMED 2.9 has no value description on Keywords
+#if PLUMED_VERSION_MAJOR > 2 || (PLUMED_VERSION_MAJOR == 2 && PLUMED_VERSION_MINOR >= 10)
   keys.setValueDescription("mean molecule score, between 0 and 1");
+#endif
 }
 
 DseamsSmooth::DseamsSmooth(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
