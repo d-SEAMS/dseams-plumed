@@ -36,7 +36,8 @@ pixi run -e plumed29 test    # the same against PLUMED 2.9, build-plumed29/
 pixi run -e plumed210 test   # and PLUMED 2.10, build-plumed210/
 ```
 
-Run `pixi lock` after editing `pixi.toml` and commit both.
+CI runs the last two from `pixi.lock`; run `pixi lock` after editing
+`pixi.toml` and commit both.
 
 Without pixi, put `plumed` on `PATH` and run
 

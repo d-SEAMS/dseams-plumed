@@ -427,5 +427,9 @@ Algorithm. /J. Phys. Chem. B/ 2015, 119, 9369-9376.
 
 * Continuous integration
 
-Every push to =main= builds the module against the pinned engine in the
-pixi environment and runs the driver tests (=pixi run test=).
+Every push and pull request to =main= or a =release/= branch, and every
+=v*= tag, builds the module against the pinned engine and runs the full
+test suite twice, once with PLUMED 2.9 and once with PLUMED 2.10, from
+the locked pixi environments. A second job checks that =pixi.toml=,
+=CITATION.cff=, =CHANGELOG.md= and a release tag agree with the
+version in =meson.build=.
