@@ -29,6 +29,13 @@ Build the shared module against an installed PLUMED. Meson runs
 PLUMED locally. An installed =seams-core= (=pkg-config seams-core=)
 supplies the engine; the wrap is the fallback.
 
+The version of this module follows the engine release it wraps:
+dseams-plumed 2.14.0 builds against seams-core 2.14.0, pinned by
+=subprojects/seams-core.wrap=. The pixi task passes
+=--force-fallback-for=seams-core=, so an older installed engine does not
+shadow the pinned one. The smooth fraction uses OpenMP at PLUMED's
+=NUM_THREADS=.
+
 With pixi (plumed, compilers, meson):
 
 #+begin_src bash
@@ -76,7 +83,11 @@ centre (the periodic centroid of a cage's vertices) within
 =GUEST_RADIUS= (default 4 A). =noccupied= counts cages with a guest,
 =nmultiple= cages with more than one, =nfreeguest= guests in no cage:
 the filled-cage count that hydrate nucleation studies bias and commit
-on.
+on. =noccupied_inside=, =nmultiple_inside= and =nfreeguest_inside= are
+the same counts by the engine's inside test: a guest belongs to a cage
+when a ray from it crosses the cage faces an odd number of times, and
+among the cages that contain it the nearest centroid wins. The inside
+counts do not use =GUEST_RADIUS=.
 
 =LIBRARY= names a topology key library from =seams fingerprint --emit-library=,
 or several, comma separated, built at different hop counts: each molecule
@@ -167,9 +178,15 @@ Each component reports an integer count with no derivative.
 =nionliq= counts ions with no cage molecule in the first shell.
 =nclasses= counts distinct local topology classes on the mutual graph.
 =nnamed= counts molecules whose local key the =LIBRARY= names.
+=ncages= counts closed cages that match =SIGNATURE=.
+=noccupied=, =nmultiple= and =nfreeguest= are the =GUESTS= counts by
+centroid radius.
+=noccupied_inside=, =nmultiple_inside= and =nfreeguest_inside= are the
+=GUESTS= counts by the inside test.
 
 Omit =IONS= and the three ion components stay 0. Omit =LIBRARY= and
-=nnamed= stays 0.
+=nnamed= stays 0. Omit =SIGNATURE= or =GUESTS= and the cage and guest
+counts stay 0.
 
 * Ions
 
@@ -201,6 +218,21 @@ high-pressure ice.
 hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys,sI_sII_h2.keys HOPS=3
 PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
 #+end_example
+
+* Examples
+
+Each directory carries a README with the commands and the measured
+output.
+
+- =examples/lammps-mw/=: 64 mW molecules, a restraint on
+  =DSEAMS_SMOOTH_CHILL=.
+- =examples/lammps-mw-freeze/=: a 512-molecule mW box frozen by a moving
+  restraint, with the Q6 and =ENVIRONMENTSIMILARITY= inputs used for the
+  timing comparison.
+- =examples/gromacs-tip4pice/=: a 432-molecule TIP4P/Ice slab, eight
+  walkers on one shared OPES bias, and the free-energy profiles.
+- =examples/openmm-tip4pew/=: the module loaded through =PlumedForce=.
+- =nest/=: the PLUMED-NEST egg.
 
 * Inside LAMMPS
 
@@ -235,6 +267,14 @@ ice Ic and lower on a disordered copy, that =plumed driver
 --debug-forces= agrees with the analytic derivative, that =METAD=
 accepts the smooth value, and that =METAD= refuses the discrete
 fraction.
+
+=regtest= runs the directories under =regtest/dseams/= the way PLUMED's
+regtest runner does and diffs each =*.reference= file: =rt-chill=,
+=rt-rings=, =rt-smooth=, and =rt-smooth-numder=, which also compares the
+analytic forces and virial with =--debug-forces=. =thread_bits= checks
+that one and eight OpenMP threads give the same bits, and =track=
+checks that the smooth fraction rises with the published label along a
+slab cut.
 
 The older three checks are unchanged.
 
@@ -316,7 +356,7 @@ the published fraction of 1). Eight walkers, 24 ns at 210 K, one of
 them started from the hot liquid, put the ice minimum at fraction
 0.935. From fraction 0.10 that minimum is 129 kJ/mol for the
 432-molecule box (0.30 kJ/mol per molecule), with a 12 kJ/mol range
-over 2.4–3.0 ns. No walker entered 0.34–0.41. At 330 K the earlier
+over 2.4-3.0 ns. No walker entered 0.34-0.41. At 330 K the earlier
 single-walker minimum is at 0.005. At equal wall time, with Q6 on a
 neighbour list and ENVIRONMENTSIMILARITY pointed at this hexagonal
 ice, the smooth fraction is the fastest of the three per CPU-hour.
