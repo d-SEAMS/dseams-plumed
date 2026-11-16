@@ -42,6 +42,8 @@ With pixi (plumed, compilers, meson):
 pixi install
 pixi run build          # build/libdseams_plumed.so
 pixi run test
+pixi run -e plumed29 test    # PLUMED 2.9, in build-plumed29/
+pixi run -e plumed210 test   # PLUMED 2.10, in build-plumed210/
 #+end_src
 
 Without pixi, put an installed =plumed= on =PATH= and run:

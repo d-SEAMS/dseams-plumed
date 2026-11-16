@@ -1,4 +1,5 @@
 build/
+build-*/
 .pixi/
 # Meson promotes the engine's own subprojects and their wrap-redirects
 # here; only the engine pin is tracked
