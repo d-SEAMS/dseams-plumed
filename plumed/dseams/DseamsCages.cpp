@@ -509,21 +509,14 @@ void DseamsCages::calculate() {
         guestIdx.push_back(occCloud.nop);
         occCloud.nop += 1;
       }
-      std::vector<std::vector<int>> cages;
-      std::vector<std::vector<std::vector<int>>> faces;
-      cages.reserve(found.size());
-      faces.reserve(found.size());
+      // cage faces as ring indices; the inside test unwraps each cage
+      // about its own face centroid
+      std::vector<std::vector<int>> cageFaces;
+      cageFaces.reserve(found.size());
       for (const auto &c : found) {
-        cages.push_back(c.vertices);
-        std::vector<std::vector<int>> cageFaces;
-        for (int fi : c.faces) {
-          if (fi >= 0 && static_cast<std::size_t>(fi) < rings.size()) {
-            cageFaces.push_back(rings[static_cast<std::size_t>(fi)]);
-          }
-        }
-        faces.push_back(std::move(cageFaces));
+        cageFaces.push_back(c.faces);
       }
-      const auto inside = site::guestOccupancyInside(occCloud, cages, faces, guestIdx);
+      const auto inside = site::guestOccupancyInside(occCloud, rings, cageFaces, guestIdx);
       nOccupiedIn = static_cast<double>(inside.occupied);
       nMultipleIn = static_cast<double>(inside.multiply);
       nFreeGuestIn = static_cast<double>(inside.free);
