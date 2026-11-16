@@ -199,7 +199,7 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
       if (libraries_[i].hops == libraries_[i - 1].hops) {
         error("two LIBRARY files share a hop count");
       }
-      if (libraries_[i].coloured != library_.coloured) {
+      if (libraries_[i].colored != library_.colored) {
         error("LIBRARY files differ in colouring");
       }
     }
