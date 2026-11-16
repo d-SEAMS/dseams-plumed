@@ -1,5 +1,7 @@
 build/
 .pixi/
-subprojects/seams-core/
-subprojects/packagecache/
+# Meson promotes the engine's own subprojects and their wrap-redirects
+# here; only the engine pin is tracked
+subprojects/*
+!subprojects/seams-core.wrap
 __pycache__/
