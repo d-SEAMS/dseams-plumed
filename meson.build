@@ -78,15 +78,25 @@ if pymod.found()
     args: [meson.project_source_root() / 'tests' / 'guest_check.py',
            plumed.full_path(), mod.full_path()],
     timeout: 600)
-  # the library check needs the engine CLI on PATH to write the keys
-  seams_cli = find_program('seams', required: false)
-  if seams_cli.found()
-    test('driver_library',
-      pymod,
-      args: [meson.project_source_root() / 'tests' / 'library_check.py',
-             plumed.full_path(), mod.full_path(), seams_cli.full_path()],
-      timeout: 600)
+  # The library check needs the engine CLI to write the keys: the CLI built
+  # by the seams-core subproject when the wrap supplies the engine, else a
+  # seams on PATH. Without either the test is registered and reports a
+  # skip (exit 77) with the reason.
+  # The wrap is configured with with_cli=true, so seams_exe exists there.
+  seams_cli = ''
+  if yds_dep.type_name() == 'internal'
+    seams_cli = subproject('seams-core').get_variable('seams_exe')
+  else
+    seams_path = find_program('seams', required: false)
+    if seams_path.found()
+      seams_cli = seams_path
+    endif
   endif
+  test('driver_library',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'library_check.py',
+           plumed.full_path(), mod.full_path(), seams_cli],
+    timeout: 600)
   test('driver_chill',
     pymod,
     args: [meson.project_source_root() / 'tests' / 'chill_match.py',

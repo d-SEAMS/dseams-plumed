@@ -298,7 +298,8 @@ oxygen lattice. It checks =nionice= 2, =nionfront= 0, =nionliq= 0, with
 =driver_library= (=tests/library_check.py=) writes a cubic-diamond
 lattice, emits its key library with =seams fingerprint --emit-library=,
 and checks that =nnamed= equals the molecule count and =nclasses= is
-one. Meson registers this test when a =seams= binary is on =PATH=.
+one. The CLI comes from the seams-core subproject, or from =PATH= with an
+installed engine; with neither the test reports a skip and the reason.
 
 * Timing
 

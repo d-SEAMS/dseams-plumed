@@ -43,7 +43,8 @@ meson test -C build --print-errorlogs
 bash regtest/run   # DSEAMS_MODULE and PLUMED_BIN override the defaults
 ```
 
-`driver_library` runs only when a `seams` binary is on `PATH`.
+`driver_library` uses the seams CLI built by the wrap, or `seams` on
+`PATH` with an installed engine; with neither it reports a skip.
 
 A change to an action keeps every regtest reference unchanged unless the
 change is meant to move the number. Regenerate a `*.reference` only in

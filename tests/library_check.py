@@ -5,6 +5,8 @@ molecule is named.
 
   library_check.py PLUMED_BIN MODULE_SO SEAMS_BIN
 
+An empty SEAMS_BIN reports a skip (exit 77) with the reason.
+
 The lattice is written as a LAMMPS dump for `seams fingerprint
 --emit-library` (mutual four-nearest graph, three hops) and as xyz for the
 driver; the action builds the same graph, so nnamed must equal the number
@@ -36,7 +38,12 @@ def cubic_diamond(reps):
 
 
 def main():
-    plumed, module, seams = sys.argv[1], sys.argv[2], sys.argv[3]
+    plumed, module = sys.argv[1], sys.argv[2]
+    seams = sys.argv[3] if len(sys.argv) > 3 else ""
+    if not seams:
+        # 77 is the skip status of meson test
+        print("SKIP: no seams CLI from the seams-core subproject or on PATH")
+        raise SystemExit(77)
     pos, box = cubic_diamond(4)
     work = pathlib.Path(tempfile.mkdtemp(prefix="dseams-lib-"))
     n = len(pos)
