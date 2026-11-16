@@ -1,0 +1,8 @@
+# Oxygens are the first site of each TIP4P/Ice molecule.
+# D_0 and D_MAX are Angstrom. LENGTH_SCALE converts the nm coordinates.
+UNITS LENGTH=nm
+LOAD FILE=../../build/libdseams_plumed.so
+ice: DSEAMS_SMOOTH_CHILL ATOMS=1-1728:4 D_0=3.2 D_MAX=3.5 LENGTH_SCALE=10.0
+ch: DSEAMS_CHILL ATOMS=1-1728:4 CUTOFF=3.5 LENGTH_SCALE=10.0
+res: RESTRAINT ARG=ice AT=0.90 KAPPA=20000
+PRINT ARG=ice,res.bias,ch.fraction STRIDE=500 FILE=COLVAR

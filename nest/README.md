@@ -7,6 +7,11 @@ the module it loads and where the module comes from.
   growing front in an NaCl brine, and the filled cages of a methane
   hydrate. Every component is a count without derivatives, for `PRINT`,
   `COMMITTOR` and analysis rather than biasing.
+- `ice-fraction.dat`: the published CHILL+ ice fraction, the
+  `ovito-chill+` alternative, the primitive ring census, and
+  `DSEAMS_SMOOTH_CHILL` under metadynamics. The fraction and the ring
+  counts have no derivatives. The smooth value does, and it is a
+  surrogate, not the published label.
 - The module is `libdseams_plumed.so`, built from this repository
   against the d-SEAMS engine (`pixi run build`, or `meson setup build
   && meson compile -C build`). `LOAD FILE=` takes the path to that

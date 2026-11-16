@@ -1,0 +1,5 @@
+512 mW, ice core in liquid, 2000 steps, timestep 10 fs, one thread, NPT 210 K
+plain Loop time of 1.55807 on 1 procs for 2000 steps with 512 atoms
+smooth Loop time of 2.97895 on 1 procs for 2000 steps with 512 atoms
+q6 Loop time of 645.449 on 1 procs for 2000 steps with 512 atoms
+envsim Loop time of 162.255 on 1 procs for 2000 steps with 512 atoms

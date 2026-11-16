@@ -1,0 +1,4 @@
+UNITS LENGTH=A
+LOAD FILE=MODULE_SO
+ice: DSEAMS_CHILL ATOMS=1-64 CUTOFF=3.5 LENGTH_SCALE=1.0
+PRINT ARG=ice.fraction,ice.ncubic,ice.nhex,ice.nwater,ice.nmax STRIDE=1 FILE=CHILL FMT=%12.6f

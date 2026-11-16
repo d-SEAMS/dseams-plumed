@@ -1,0 +1,7 @@
+# Well-tempered metadynamics on the smooth ice fraction.
+# D_0 and D_MAX are Angstrom. LENGTH_SCALE converts nanometres.
+UNITS LENGTH=nm
+LOAD FILE=../../build/libdseams_plumed.so
+ice: DSEAMS_SMOOTH_CHILL ATOMS=1-1728:4 D_0=3.2 D_MAX=3.5 LENGTH_SCALE=10.0
+metad: METAD ARG=ice SIGMA=0.03 HEIGHT=1.5 BIASFACTOR=15 TEMP=210 PACE=500 GRID_MIN=0 GRID_MAX=1 GRID_BIN=200 FILE=HILLS
+PRINT ARG=ice,metad.bias STRIDE=500 FILE=COLVAR

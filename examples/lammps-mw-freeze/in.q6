@@ -1,0 +1,14 @@
+units real
+atom_style atomic
+boundary p p p
+read_data data.seed
+mass 1 18.0154
+pair_style sw
+pair_coeff * * mW.sw mW
+neighbor 2.0 bin
+timestep 10.0
+velocity all create 210.0 21 dist gaussian
+fix pl all plumed plumedfile plumed.q6 outfile plumed.out
+fix npt all npt temp 210.0 210.0 200.0 iso 1.0 1.0 2000.0
+thermo 2000
+run 2000

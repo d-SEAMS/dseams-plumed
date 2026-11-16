@@ -1,0 +1,9 @@
+# Eight MPI ranks, one shared OPES bias. Launch with
+#   mpirun -np 8 gmx_mpi mdrun -s run.tpr -multidir w0 ... w7 -plumed plumed.dat
+# D_0 and D_MAX are Angstrom. LENGTH_SCALE converts nanometres.
+# The action is the capped smooth fraction (TAIL_AMP=0.65).
+LOAD FILE=../../build/libdseams_plumed.so
+UNITS LENGTH=nm
+ice: DSEAMS_SMOOTH_CHILL ATOMS=1-1728:4 D_0=3.2 D_MAX=3.5 LENGTH_SCALE=10.0
+opes: OPES_METAD ARG=ice TEMP=210 PACE=500 SIGMA=0.06 BARRIER=300 FILE=KERNELS WALKERS_MPI
+PRINT ARG=ice,opes.bias,opes.rct STRIDE=500 FILE=COLVAR

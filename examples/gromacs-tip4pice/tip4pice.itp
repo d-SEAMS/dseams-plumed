@@ -1,0 +1,23 @@
+; TIP4P/Ice (Abascal, Sanz, Garcia Fernandez and Vega, J. Chem. Phys. 122, 234511, 2005).
+; sigma 0.31668 nm, epsilon 0.8822 kJ/mol, qH 0.5897, dOM 0.01577 nm.
+
+[ moleculetype ]
+SOL 2
+
+[ atoms ]
+1 OW 1 SOL OW  1  0.0000
+2 HW 1 SOL HW1 1  0.5897
+3 HW 1 SOL HW2 1  0.5897
+4 MW 1 SOL MW  1 -1.1794
+
+[ settles ]
+1 1 0.09572 0.15139
+
+[ exclusions ]
+1 2 3 4
+2 1 3 4
+3 1 2 4
+4 1 2 3
+
+[ virtual_sites3 ]
+4 1 2 3 1 0.13458335 0.13458335
