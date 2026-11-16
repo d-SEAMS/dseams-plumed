@@ -8,10 +8,15 @@ project('dseams-plumed', 'cpp',
 # that distinguishes the published Nguyen and Molinero rule from
 # ovito-chill+. --force-fallback-for=seams-core selects it over an older
 # installed copy. The engine tests are not built. The CLI stays on because
-# the language bindings refer to it.
+# driver_library writes its key library with it. The engine's own LAMMPS,
+# GROMACS, OpenMM and PLUMED hooks are auto features that this module
+# does not use; left on, the LAMMPS hook builds whenever liblammps is
+# visible and needs an MPI-enabled LAMMPS.
 yds_dep = dependency('seams-core',
   fallback: ['seams-core', 'yds_dep'],
-  default_options: ['with_tests=false', 'with_cli=true'])
+  default_options: ['with_tests=false', 'with_cli=true',
+                    'with_lammps=disabled', 'with_gromacs=disabled',
+                    'with_openmm=disabled', 'with_plumed=disabled'])
 
 # PLUMED headers come from the installed plumed; libplumedKernel is linked
 # below
@@ -19,7 +24,6 @@ plumed = find_program('plumed', required: true)
 # An MPI-enabled plumed can print launcher notices before the answer; the
 # path is the last line
 plumed_inc = run_command(plumed, 'info', '--include-dir', check: true).stdout().strip().split('\n')[-1].strip()
-plumed_root = run_command(plumed, 'info', '--root', check: true).stdout().strip().split('\n')[-1].strip()
 message('plumed include dir: ' + plumed_inc)
 
 # -isystem strings rather than include_directories(): the pixi environment
