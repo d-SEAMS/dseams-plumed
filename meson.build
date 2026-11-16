@@ -13,8 +13,8 @@ yds_dep = dependency('seams-core',
   fallback: ['seams-core', 'yds_dep'],
   default_options: ['with_tests=false', 'with_cli=true'])
 
-# PLUMED headers come from the installed plumed; the kernel resolves the
-# symbols when LOAD dlopens the module, so nothing is linked here
+# PLUMED headers come from the installed plumed; libplumedKernel is linked
+# below
 plumed = find_program('plumed', required: true)
 # An MPI-enabled plumed can print launcher notices before the answer; the
 # path is the last line
