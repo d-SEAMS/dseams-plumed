@@ -361,13 +361,14 @@ seeds. Well-tempered metadynamics of the same collective variable on
 the TIP4P/Ice slab is =examples/gromacs-tip4pice/=. The smooth score
 keeps a slope in the liquid: a softer staggered weight that is still
 climbing at c = -0.8, and a Gaussian gate on a neighbour count of
-four. On ideal ice Ic the value is 0.99544 (residual -0.0046 against
-the published fraction of 1). Eight walkers, 24 ns at 210 K, one of
-them started from the hot liquid, put the ice minimum at fraction
-0.935. From fraction 0.10 that minimum is 129 kJ/mol for the
-432-molecule box (0.30 kJ/mol per molecule), with a 12 kJ/mol range
-over 2.4-3.0 ns. No walker entered 0.34-0.41. At 330 K the earlier
-single-walker minimum is at 0.005. At equal wall time, with Q6 on a
+four. That soft channel stops at 0.65, so a liquid with no crystal
+does not outscore a seeded nucleus. On ideal ice Ic the value is
+0.99851 (residual -0.0015 against the published fraction of 1).
+Eight walkers on one shared OPES bias, 13 ns at 210 K, put the ice
+well (fraction 0.90-0.98) 3.00 kJ/mol below the low well (0.12-0.25)
+for the 432-molecule box, with a 0.42 kJ/mol range over five blocks
+of the last 2.6 ns. At 330 K the single-walker minimum is at 0.005.
+At equal wall time, with Q6 on a
 neighbour list and ENVIRONMENTSIMILARITY pointed at this hexagonal
 ice, the smooth fraction is the fastest of the three per CPU-hour.
 An OpenMM TIP4P-Ew run is =examples/openmm-tip4pew/=. The actions and

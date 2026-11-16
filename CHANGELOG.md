@@ -27,24 +27,24 @@ by [towncrier](https://towncrier.readthedocs.io/).
   metadynamics and other biases. Its neighbour list is reused across
   steps, and the Y_3m gradient is analytic, so one evaluation on 4096
   molecules costs about the same as the discrete count.
+- CITATION.cff with the d-SEAMS and CHILL+ papers.
+- pixi environments `plumed29` and `plumed210`, and a committed
+  `pixi.lock`. CI runs the full suite in both, on `main`, `release/**`
+  and `v*` tags, and checks that the versions agree.
 
 ### Changed
 
 - DSEAMS_SMOOTH_CHILL evaluates on PLUMED's NUM_THREADS. The pair list
   order is unchanged, so one thread and several threads return the same
   value, forces and virial.
-- Eight walkers and 28 ns of well-tempered metadynamics at 210 K put
-  the slab free-energy minimum at smooth fraction 0.930. At equal wall
-  time the smooth fraction reaches a published ice fraction of 0.8 and
-  Q6 MEAN does not.
-- Engine wrap follows HaoZeke/seams-core 988d3996 (published CHILL+ rule
-  and the ovito-chill+ alternative).
-- Engine wrap follows seams-core 67628524 (v2.10.0 plus ice XXI).
-- Engine wrap follows seams-core 91235ec1 (CHILL+ device-safe target loops).
-- Engine wrap follows seams-core bdc9b74 (RDF MIC-once and ice XXI fingerprint).
-- Engine wrap follows seams-core eb1a4985 (j815 leftover batch).
-- Engine wrap follows seams-core fa1c8a73 (audit UB and IRA residual).
-- Engine wrap follows the seams-core 2.14.0 release (628b0af9).
+- Engine wrap follows the seams-core 2.14.0 release (628b0af9), from
+  v2.9.2 by way of v2.10.0 and the main revisions after it.
+- The module is built for the toolchain's generic CPU, so it loads on
+  any machine the compiler targets; `-Dnative=true` adds
+  `-march=native`.
+- The engine's own LAMMPS, GROMACS, OpenMM and PLUMED hooks are not
+  built under the module, so a LAMMPS in the environment no longer
+  breaks the build.
 - The GROMACS slab example runs eight walkers on one shared OPES bias
   with the capped smooth fraction, and `scripts/fes_blocks.py` gives the
   block error of the free-energy difference.
@@ -59,17 +59,20 @@ by [towncrier](https://towncrier.readthedocs.io/).
   staggered neighbours, or three staggered and one eclipsed. On a ladder
   from liquid to ice the rms residual against the published fraction is
   0.01, and the value does not decrease as the published fraction rises.
-- The smooth ice fraction keeps a slope in liquid water. A softer
-  staggered weight, still climbing at the published -0.8 edge, and a
-  Gaussian gate on a neighbour count of four leave ideal ice Ic at
-  0.99544. Eight walkers at 210 K, one started from the liquid, put
-  the free-energy minimum at fraction 0.935. At equal wall time it
+- The smooth ice fraction keeps a slope in liquid water, from a softer
+  staggered weight still climbing at the published -0.8 edge and a
+  Gaussian gate on a neighbour count of four. At equal wall time it
   is faster per CPU-hour than Q6 with a neighbour list and than
   ENVIRONMENTSIMILARITY to this hexagonal ice.
 - The soft channel of the smooth ice fraction now stops at 0.65, so a
   liquid with no crystal can no longer outscore a seeded nucleus.
   Ideal ice Ic prints 0.99850519.
 
+## [0.3.1] - 2026-09-02
+
+### Changed
+
+- Engine wrap pinned to seams-core v2.9.2.
 
 ## [0.3.0] - 2026-09-02
 
