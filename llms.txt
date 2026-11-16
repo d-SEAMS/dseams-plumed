@@ -1,0 +1,41 @@
+# dseams-plumed
+
+> dseams-plumed is a PLUMED module that exposes the d-SEAMS engine as actions: the seeded cage ice score with guest occupancy (DSEAMS_CAGES), the published CHILL+ ice fraction (DSEAMS_CHILL), the primitive ring census (DSEAMS_RINGS), and a differentiable smooth CHILL+ ice fraction for biasing (DSEAMS_SMOOTH_CHILL).
+
+The library is `libdseams_plumed.so`, loaded with `LOAD FILE=`. Meson builds it against an installed PLUMED 2.9 or newer and seams-core 2.14.0, pinned by `subprojects/seams-core.wrap`; the module version follows the engine release. `pixi run build` and `pixi run test` build it and run the driver checks and regtests. Each link below is a file in https://github.com/d-SEAMS/dseams-plumed.
+
+## Getting started
+
+- [README](https://github.com/d-SEAMS/dseams-plumed/blob/main/README.org): Install, every action and keyword, the components, examples, driver tests, timing, and citation.
+- [Action manual](https://github.com/d-SEAMS/dseams-plumed/blob/main/docs/manual.txt): Keywords and components of each action, with units.
+
+## Examples
+
+- [LAMMPS mW restraint](https://github.com/d-SEAMS/dseams-plumed/blob/main/examples/lammps-mw/README.md): 64 mW molecules with a restraint on DSEAMS_SMOOTH_CHILL.
+- [LAMMPS mW freezing](https://github.com/d-SEAMS/dseams-plumed/blob/main/examples/lammps-mw-freeze/README.md): A 512-molecule mW box frozen by a moving restraint, and the Q6 and ENVIRONMENTSIMILARITY timing inputs.
+- [GROMACS TIP4P/Ice slab](https://github.com/d-SEAMS/dseams-plumed/blob/main/examples/gromacs-tip4pice/README.md): Eight walkers on one shared OPES bias and the slab free-energy profiles with block errors.
+- [OpenMM TIP4P-Ew](https://github.com/d-SEAMS/dseams-plumed/blob/main/examples/openmm-tip4pew/README.md): The module loaded through PlumedForce.
+- [PLUMED-NEST egg](https://github.com/d-SEAMS/dseams-plumed/blob/main/nest/README.md): Ice, brine, hydrate and ice-fraction inputs for the NEST.
+
+## Reference
+
+- [Action sources](https://github.com/d-SEAMS/dseams-plumed/tree/main/plumed/dseams): DseamsCages.cpp, DseamsChill.cpp, DseamsRings.cpp, DseamsSmooth.cpp, and the smooth CHILL+ kernel smooth_chill.hpp.
+- [Build definition](https://github.com/d-SEAMS/dseams-plumed/blob/main/meson.build): The module, the offline engine driver, and the test registrations.
+- [Engine pin](https://github.com/d-SEAMS/dseams-plumed/blob/main/subprojects/seams-core.wrap): The seams-core revision the module builds against.
+- [Regtests](https://github.com/d-SEAMS/dseams-plumed/tree/main/regtest): PLUMED-style reference runs for CHILL, rings, and the smooth fraction with a numerical force check.
+- [Driver checks](https://github.com/d-SEAMS/dseams-plumed/tree/main/tests): Comparisons against the engine on ice, liquid, interface, ion, guest and library frames.
+
+## Explanation
+
+- [Upstream PLUMED branch](https://github.com/d-SEAMS/dseams-plumed/blob/main/docs/upstream.txt): A branch cut from PLUMED master that carries these actions as a module.
+- [Smooth fraction fit](https://github.com/d-SEAMS/dseams-plumed/blob/main/docs/smooth-fit.txt): The smooth value against the published CHILL+ fraction on a liquid-to-ice ladder.
+
+## Project
+
+- [Changelog](https://github.com/d-SEAMS/dseams-plumed/blob/main/CHANGELOG.md): Released versions in Keep a Changelog form; unreleased notes are towncrier fragments under changelog.d/.
+- [License](https://github.com/d-SEAMS/dseams-plumed/blob/main/LICENSE): MIT.
+
+## Optional
+
+- [Timing logs](https://github.com/d-SEAMS/dseams-plumed/tree/main/bench/logs): Raw per-run timing lines behind the README tables.
+- [Block errors](https://github.com/d-SEAMS/dseams-plumed/blob/main/scripts/fes_blocks.py): Block standard error of a free-energy difference from OPES output.
