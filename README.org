@@ -432,4 +432,5 @@ Every push and pull request to =main= or a =release/= branch, and every
 test suite twice, once with PLUMED 2.9 and once with PLUMED 2.10, from
 the locked pixi environments. A second job checks that =pixi.toml=,
 =CITATION.cff=, =CHANGELOG.md= and a release tag agree with the
-version in =meson.build=.
+version in =meson.build=. Dependabot proposes updates of the pinned
+actions.
