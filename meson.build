@@ -1,5 +1,5 @@
 project('dseams-plumed', 'cpp',
-  version: '0.3.1',
+  version: '2.14.0',
   license: 'MIT',
   default_options: ['cpp_std=c++20', 'buildtype=release', 'warning_level=2'])
 
