@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Run plumed driver with DSEAMS_CAGES SIGNATURE=4:6 GUESTS=... over a
 5x5x5 simple-cubic lattice (every unit cube a closed six-faced polyhedron)
-with a guest at 64 of the 125 cube centres, and check the occupancy.
+with a guest at 64 of the 125 cube centres, and check the occupancy by
+centroid radius and by the ray-parity inside test.
 
   guest_check.py PLUMED_BIN MODULE_SO
 """
@@ -36,7 +37,8 @@ def main():
         f"LOAD FILE={module}\n"
         f"cube: DSEAMS_CAGES ATOMS=1-{n} GUESTS={n + 1}-{n + len(guests)} CUTOFF=3.5 "
         "CANDIDATE=4.5 K=6 LENGTH_SCALE=1.0 SIGNATURE=4:6 GUEST_RADIUS=3.0\n"
-        "PRINT ARG=cube.ncages,cube.noccupied,cube.nmultiple,cube.nfreeguest STRIDE=1 FILE=CUBES FMT=%8.0f\n"
+        "PRINT ARG=cube.ncages,cube.noccupied,cube.nmultiple,cube.nfreeguest,"
+        "cube.noccupied_inside,cube.nmultiple_inside,cube.nfreeguest_inside STRIDE=1 FILE=CUBES FMT=%8.0f\n"
     )
     driver = subprocess.run(
         [plumed, "driver", "--plumed", "plumed.dat", "--ixyz", "frame.xyz", "--length-units", "A"],
@@ -51,12 +53,17 @@ def main():
         for line in (work / "CUBES").read_text().splitlines()
         if line.strip() and not line.startswith("#")
     ]
-    _, ncages, nocc, nmulti, nfree = rows[-1]
+    _, ncages, nocc, nmulti, nfree, nocc_in, nmulti_in, nfree_in = rows[-1]
     print(f"ncages={ncages:.0f} noccupied={nocc:.0f} nmultiple={nmulti:.0f} nfreeguest={nfree:.0f}")
+    print(f"noccupied_inside={nocc_in:.0f} nmultiple_inside={nmulti_in:.0f} "
+          f"nfreeguest_inside={nfree_in:.0f}")
     assert ncages == N ** 3, "every unit cube of the periodic lattice is a closed 4:6 polyhedron"
     assert nocc == len(guests), "one occupied cube per guest"
     assert nmulti == 0, "no cube holds two guests"
     assert nfree == 0, "every guest sits at a cube centre"
+    assert nocc_in == len(guests), "each guest is inside exactly its own cube"
+    assert nmulti_in == 0, "no cube contains two guests by the inside test"
+    assert nfree_in == 0, "no guest lies outside every cube"
     print("ok")
 
 
