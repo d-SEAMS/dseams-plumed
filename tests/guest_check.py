@@ -38,7 +38,7 @@ def main():
         f"cube: DSEAMS_CAGES ATOMS=1-{n} GUESTS={n + 1}-{n + len(guests)} CUTOFF=3.5 "
         "CANDIDATE=4.5 K=6 LENGTH_SCALE=1.0 SIGNATURE=4:6 GUEST_RADIUS=3.0\n"
         "PRINT ARG=cube.ncages,cube.noccupied,cube.nmultiple,cube.nfreeguest,"
-        "cube.noccupied_inside,cube.nmultiple_inside,cube.nfreeguest_inside STRIDE=1 FILE=CUBES FMT=%8.0f\n"
+        "cube.noccupiedinside,cube.nmultipleinside,cube.nfreeguestinside STRIDE=1 FILE=CUBES FMT=%8.0f\n"
     )
     driver = subprocess.run(
         [plumed, "driver", "--plumed", "plumed.dat", "--ixyz", "frame.xyz", "--length-units", "A"],
@@ -55,8 +55,8 @@ def main():
     ]
     _, ncages, nocc, nmulti, nfree, nocc_in, nmulti_in, nfree_in = rows[-1]
     print(f"ncages={ncages:.0f} noccupied={nocc:.0f} nmultiple={nmulti:.0f} nfreeguest={nfree:.0f}")
-    print(f"noccupied_inside={nocc_in:.0f} nmultiple_inside={nmulti_in:.0f} "
-          f"nfreeguest_inside={nfree_in:.0f}")
+    print(f"noccupiedinside={nocc_in:.0f} nmultipleinside={nmulti_in:.0f} "
+          f"nfreeguestinside={nfree_in:.0f}")
     assert ncages == N ** 3, "every unit cube of the periodic lattice is a closed 4:6 polyhedron"
     assert nocc == len(guests), "one occupied cube per guest"
     assert nmulti == 0, "no cube holds two guests"

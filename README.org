@@ -83,7 +83,7 @@ centre (the periodic centroid of a cage's vertices) within
 =GUEST_RADIUS= (default 4 A). =noccupied= counts cages with a guest,
 =nmultiple= cages with more than one, =nfreeguest= guests in no cage:
 the filled-cage count that hydrate nucleation studies bias and commit
-on. =noccupied_inside=, =nmultiple_inside= and =nfreeguest_inside= are
+on. =noccupiedinside=, =nmultipleinside= and =nfreeguestinside= are
 the same counts by the engine's inside test: a guest belongs to a cage
 when a ray from it crosses the cage faces an odd number of times, and
 among the cages that contain it the nearest centroid wins. The inside
@@ -181,7 +181,7 @@ Each component reports an integer count with no derivative.
 =ncages= counts closed cages that match =SIGNATURE=.
 =noccupied=, =nmultiple= and =nfreeguest= are the =GUESTS= counts by
 centroid radius.
-=noccupied_inside=, =nmultiple_inside= and =nfreeguest_inside= are the
+=noccupiedinside=, =nmultipleinside= and =nfreeguestinside= are the
 =GUESTS= counts by the inside test.
 
 Omit =IONS= and the three ion components stay 0. Omit =LIBRARY= and

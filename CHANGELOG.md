@@ -16,8 +16,8 @@ by [towncrier](https://towncrier.readthedocs.io/).
 
 - An OpenMM TIP4P-Ew example loads the module through PlumedForce and
   runs a short periodic box.
-- DSEAMS_CAGES reports noccupied_inside, nmultiple_inside and
-  nfreeguest_inside, the guest counts from the engine's ray-parity inside
+- DSEAMS_CAGES reports noccupiedinside, nmultipleinside and
+  nfreeguestinside, the guest counts from the engine's ray-parity inside
   test, beside the centroid-within-radius counts.
 - DSEAMS_CHILL reports the published Nguyen and Molinero 2015 bulk-ice
   fraction, and RULE=ovito-chill+ selects the OVITO 3.17.2 modifier. The

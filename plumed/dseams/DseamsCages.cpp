@@ -136,9 +136,9 @@ void DseamsCages::registerKeywords(Keywords &keys) {
   keys.addOutputComponent("noccupied", "default", "SIGNATURE cages holding at least one guest (radius)");
   keys.addOutputComponent("nmultiple", "default", "SIGNATURE cages holding more than one guest (radius)");
   keys.addOutputComponent("nfreeguest", "default", "guests in no SIGNATURE cage (radius)");
-  keys.addOutputComponent("noccupied_inside", "default", "SIGNATURE cages holding a guest by ray parity");
-  keys.addOutputComponent("nmultiple_inside", "default", "SIGNATURE cages holding more than one guest by ray parity");
-  keys.addOutputComponent("nfreeguest_inside", "default", "guests outside every SIGNATURE cage by ray parity");
+  keys.addOutputComponent("noccupiedinside", "default", "SIGNATURE cages holding a guest by ray parity");
+  keys.addOutputComponent("nmultipleinside", "default", "SIGNATURE cages holding more than one guest by ray parity");
+  keys.addOutputComponent("nfreeguestinside", "default", "guests outside every SIGNATURE cage by ray parity");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -213,7 +213,7 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
             "chillice", "chillmax", "chillinterfacial", "sixrings",
             "nionice", "nionfront", "nionliq", "nclasses", "nnamed",
             "ncages", "noccupied", "nmultiple", "nfreeguest",
-            "noccupied_inside", "nmultiple_inside", "nfreeguest_inside"};
+            "noccupiedinside", "nmultipleinside", "nfreeguestinside"};
   for (const auto &n : names_) {
     addComponent(n);
     componentIsNotPeriodic(n);
@@ -526,9 +526,9 @@ void DseamsCages::calculate() {
   getPntrToComponent("noccupied")->set(nOccupied);
   getPntrToComponent("nmultiple")->set(nMultiple);
   getPntrToComponent("nfreeguest")->set(nFreeGuest);
-  getPntrToComponent("noccupied_inside")->set(nOccupiedIn);
-  getPntrToComponent("nmultiple_inside")->set(nMultipleIn);
-  getPntrToComponent("nfreeguest_inside")->set(nFreeGuestIn);
+  getPntrToComponent("noccupiedinside")->set(nOccupiedIn);
+  getPntrToComponent("nmultipleinside")->set(nMultipleIn);
+  getPntrToComponent("nfreeguestinside")->set(nFreeGuestIn);
 }
 
 } // namespace colvar
