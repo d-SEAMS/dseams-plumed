@@ -384,7 +384,7 @@ fragment =+slug.added.md= (or =changed=, =deprecated=, =removed=,
 * Citation
 
 Cite the methods paper if you use this module, and the CHILL+ paper if
-you use the ice fraction.
+you use the ice fraction. [[file:CITATION.cff][CITATION.cff]] carries the same records.
 
 Goswami, R.; Goswami, A.; Singh, J. K. d-SEAMS: Deferred Structural
 Elucidation Analysis for Molecular Simulations. /J. Chem. Inf. Model./
