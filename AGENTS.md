@@ -46,6 +46,10 @@ bash regtest/run   # DSEAMS_MODULE and PLUMED_BIN override the defaults
 `driver_library` uses the seams CLI built by the wrap, or `seams` on
 `PATH` with an installed engine; with neither it reports a skip.
 
+Regtest references come from the default build, without
+`-Dnative=true`; `-march=native` can move the last digit of PLUMED's
+numerical derivative in `rt-smooth-numder/forces.dat`.
+
 A change to an action keeps every regtest reference unchanged unless the
 change is meant to move the number. Regenerate a `*.reference` only in
 the commit that changes the behaviour, and say why in the message.

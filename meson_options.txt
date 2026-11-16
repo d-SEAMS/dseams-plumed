@@ -1,0 +1,2 @@
+option('native', type: 'boolean', value: false,
+  description: 'Compile the module and its checks with -march=native. The module then needs the build host CPU, so leave it off for anything installed elsewhere')

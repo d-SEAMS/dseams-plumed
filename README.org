@@ -55,6 +55,13 @@ meson install -C build   # libdseams_plumed.so into libdir
 =LOAD FILE== takes that path, or a relative path to
 =build/libdseams_plumed.so= from the working directory of the run.
 
+The module is built for the generic CPU of the toolchain, so it loads
+on any machine the compiler targets. =-Dnative=true= adds
+=-march=native= for a module that only runs on the build host. The
+regtest references are written by the default build; under
+=-Dnative=true= the last digit of PLUMED's numerical derivative in
+=rt-smooth-numder= can differ.
+
 * Keywords
 
 =ATOMS= (required) names the oxygen atoms of the water molecules.
