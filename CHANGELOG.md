@@ -44,7 +44,7 @@ by [towncrier](https://towncrier.readthedocs.io/).
 - Engine wrap follows seams-core bdc9b74 (RDF MIC-once and ice XXI fingerprint).
 - Engine wrap follows seams-core eb1a4985 (j815 leftover batch).
 - Engine wrap follows seams-core fa1c8a73 (audit UB and IRA residual).
-- Engine wrap follows the seams-core 2.14.0 release (4703918b).
+- Engine wrap follows the seams-core 2.14.0 release (c3869641).
 - The GROMACS slab example runs eight walkers on one shared OPES bias
   with the capped smooth fraction, and `scripts/fes_blocks.py` gives the
   block error of the free-energy difference.
