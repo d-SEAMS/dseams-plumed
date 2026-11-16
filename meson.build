@@ -4,8 +4,8 @@ project('dseams-plumed', 'cpp',
   default_options: ['cpp_std=c++20', 'buildtype=release', 'warning_level=2'])
 
 # The engine: an installed seams-core (pkg-config) or the wrap.
-# The wrap is HaoZeke/seams-core chill-plus/published-rule-pr, which is the
-# tree that distinguishes the published Nguyen and Molinero rule from
+# The wrap pins the seams-core 2.14.0 release, the first engine release
+# that distinguishes the published Nguyen and Molinero rule from
 # ovito-chill+. --force-fallback-for=seams-core selects it over an older
 # installed copy. The engine tests are not built. The CLI stays on because
 # the language bindings refer to it.
