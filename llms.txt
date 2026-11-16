@@ -34,6 +34,7 @@ The library is `libdseams_plumed.so`, loaded with `LOAD FILE=`. Meson builds it 
 
 - [Changelog](https://github.com/d-SEAMS/dseams-plumed/blob/main/CHANGELOG.md): Released versions in Keep a Changelog form; unreleased notes are towncrier fragments under changelog.d/.
 - [License](https://github.com/d-SEAMS/dseams-plumed/blob/main/LICENSE): MIT.
+- [Citation](https://github.com/d-SEAMS/dseams-plumed/blob/main/CITATION.cff): The d-SEAMS paper and the CHILL+ paper in Citation File Format.
 
 ## Optional
 

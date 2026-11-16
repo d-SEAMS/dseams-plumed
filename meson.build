@@ -8,10 +8,15 @@ project('dseams-plumed', 'cpp',
 # that distinguishes the published Nguyen and Molinero rule from
 # ovito-chill+. --force-fallback-for=seams-core selects it over an older
 # installed copy. The engine tests are not built. The CLI stays on because
-# the language bindings refer to it.
+# driver_library writes its key library with it. The engine's own LAMMPS,
+# GROMACS, OpenMM and PLUMED hooks are auto features that this module
+# does not use; left on, the LAMMPS hook builds whenever liblammps is
+# visible and needs an MPI-enabled LAMMPS.
 yds_dep = dependency('seams-core',
   fallback: ['seams-core', 'yds_dep'],
-  default_options: ['with_tests=false', 'with_cli=true'])
+  default_options: ['with_tests=false', 'with_cli=true',
+                    'with_lammps=disabled', 'with_gromacs=disabled',
+                    'with_openmm=disabled', 'with_plumed=disabled'])
 
 # PLUMED headers come from the installed plumed; libplumedKernel is linked
 # below
@@ -19,7 +24,6 @@ plumed = find_program('plumed', required: true)
 # An MPI-enabled plumed can print launcher notices before the answer; the
 # path is the last line
 plumed_inc = run_command(plumed, 'info', '--include-dir', check: true).stdout().strip().split('\n')[-1].strip()
-plumed_root = run_command(plumed, 'info', '--root', check: true).stdout().strip().split('\n')[-1].strip()
 message('plumed include dir: ' + plumed_inc)
 
 # -isystem strings rather than include_directories(): the pixi environment
@@ -32,14 +36,17 @@ message('plumed include dir: ' + plumed_inc)
 plumed_kernel = meson.get_compiler('cpp').find_library('plumedKernel', required: true)
 # The smooth fraction uses the same OpenMP width as PLUMED (NUM_THREADS).
 omp = dependency('openmp', required: true)
+# One set of flags for every target that compiles smooth_chill.hpp, so
+# thread_bits and track check the code the module runs. -O3 is repeated
+# because conda's CXXFLAGS end in -O2, after the buildtype's -O3.
+kernel_args = ['-O3'] + (get_option('native') ? ['-march=native'] : [])
 mod = shared_module('dseams_plumed',
   'plumed/dseams/DseamsCages.cpp',
   'plumed/dseams/DseamsChill.cpp',
   'plumed/dseams/DseamsRings.cpp',
   'plumed/dseams/DseamsSmooth.cpp',
   dependencies: [yds_dep, plumed_kernel, omp],
-  cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN',
-             '-O3', '-march=native'],
+  cpp_args: ['-isystem', plumed_inc, '-isystem', plumed_inc / 'plumed', '-D__PLUMED_HAS_DLOPEN'] + kernel_args,
   name_prefix: 'lib',
   install: true,
   install_dir: get_option('libdir'))
@@ -47,16 +54,19 @@ mod = shared_module('dseams_plumed',
 offline = executable('dseams_offline', 'tests/offline_frame.cpp',
   dependencies: [yds_dep, omp],
   include_directories: include_directories('plumed/dseams'),
+  cpp_args: kernel_args,
   install: false)
 
 thread_bits = executable('dseams_thread_bits', 'tests/thread_bits.cpp',
   dependencies: [omp],
   include_directories: include_directories('plumed/dseams'),
+  cpp_args: kernel_args,
   install: false)
 test('thread_bits', thread_bits, timeout: 120)
 track = executable('dseams_track', 'tests/track_check.cpp',
   dependencies: [yds_dep, omp],
   include_directories: include_directories('plumed/dseams'),
+  cpp_args: kernel_args,
   install: false)
 test('track', track, timeout: 180)
 

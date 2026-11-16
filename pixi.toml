@@ -17,11 +17,35 @@ ninja = ">=1.13.2,<2"
 pkgconfig = ">=1.5.5,<2"
 python = "3.12.*"
 libhwy = ">=1.3.0"
-chemfiles = ">=0.10"
+# No chemfiles: seams-core builds its patched 0.10.4 with cmake, and a
+# conda libchemfiles.so.0.10 in the environment would shadow it through
+# the compilers' rpath
+cmake = ">=3.16"
 catch2 = ">=3.6.0,<4"
 git = "*"
 
+[activation.env]
+DSEAMS_BUILD = "build"
+
+# The two PLUMED series the module supports, each with its own build
+# directory
+[feature.plumed29.dependencies]
+plumed = "2.9.*"
+
+[feature.plumed29.activation.env]
+DSEAMS_BUILD = "build-plumed29"
+
+[feature.plumed210.dependencies]
+plumed = "2.10.*"
+
+[feature.plumed210.activation.env]
+DSEAMS_BUILD = "build-plumed210"
+
+[environments]
+plumed29 = ["plumed29"]
+plumed210 = ["plumed210"]
+
 [tasks]
-setup = "meson setup build --buildtype=release --force-fallback-for=seams-core"
-build = { cmd = "meson compile -C build", depends-on = ["setup"] }
-test = { cmd = "meson test -C build --print-errorlogs", depends-on = ["build"] }
+setup = "meson setup $DSEAMS_BUILD --buildtype=release --force-fallback-for=seams-core"
+build = { cmd = "meson compile -C $DSEAMS_BUILD", depends-on = ["setup"] }
+test = { cmd = "meson test -C $DSEAMS_BUILD --print-errorlogs", depends-on = ["build"] }

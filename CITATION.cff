@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "dseams-plumed: the d-SEAMS engine as PLUMED actions"
+type: software
+version: "2.14.0"
+date-released: "2026-11-15"
+license: MIT
+repository-code: "https://github.com/d-SEAMS/dseams-plumed"
+url: https://dseams.info
+authors:
+  - family-names: Goswami
+    given-names: Rohit
+    orcid: "https://orcid.org/0000-0002-2393-8056"
+preferred-citation:
+  type: article
+  title: "d-SEAMS: Deferred Structural Elucidation Analysis for Molecular Simulations"
+  authors:
+    - family-names: Goswami
+      given-names: Rohit
+      orcid: "https://orcid.org/0000-0002-2393-8056"
+    - family-names: Goswami
+      given-names: Amrita
+      orcid: "https://orcid.org/0000-0001-8706-2383"
+    - family-names: Singh
+      given-names: Jayant Kumar
+  journal: "Journal of Chemical Information and Modeling"
+  year: 2020
+  volume: 60
+  issue: 4
+  start: 2169
+  end: 2177
+  doi: "10.1021/acs.jcim.0c00031"
+references:
+  - type: article
+    title: "Identification of Clathrate Hydrates, Hexagonal Ice, Cubic Ice, and Liquid Water in Simulations: The CHILL+ Algorithm"
+    authors:
+      - family-names: Nguyen
+        given-names: Andrew H.
+      - family-names: Molinero
+        given-names: Valeria
+    journal: "The Journal of Physical Chemistry B"
+    year: 2015
+    volume: 119
+    issue: 29
+    start: 9369
+    end: 9376
+    doi: "10.1021/jp510289t"

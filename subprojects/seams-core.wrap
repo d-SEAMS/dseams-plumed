@@ -1,8 +1,9 @@
-# seams-core release/2.14.0 head; becomes tag v2.14.0 on d-SEAMS/seams-core
+# seams-core release/2.14.0 head (d-SEAMS/seams-core#137); becomes tag
+# v2.14.0 on d-SEAMS/seams-core
 [wrap-git]
 directory = seams-core
-url = https://github.com/HaoZeke/seams-core.git
-revision = c3869641f742dba8e962b676c8cb7289c55ef821
+url = https://github.com/d-SEAMS/seams-core.git
+revision = 628b0af94b4d3bf52426708a0d08436027c8e4fa
 depth = 1
 
 [provide]

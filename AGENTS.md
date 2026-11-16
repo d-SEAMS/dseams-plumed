@@ -32,7 +32,12 @@ engine dependencies.
 ```bash
 pixi run build   # meson setup + compile, build/libdseams_plumed.so
 pixi run test    # meson test -C build --print-errorlogs
+pixi run -e plumed29 test    # the same against PLUMED 2.9, build-plumed29/
+pixi run -e plumed210 test   # and PLUMED 2.10, build-plumed210/
 ```
+
+CI runs the last two from `pixi.lock`; run `pixi lock` after editing
+`pixi.toml` and commit both.
 
 Without pixi, put `plumed` on `PATH` and run
 
@@ -45,6 +50,10 @@ bash regtest/run   # DSEAMS_MODULE and PLUMED_BIN override the defaults
 
 `driver_library` uses the seams CLI built by the wrap, or `seams` on
 `PATH` with an installed engine; with neither it reports a skip.
+
+Regtest references come from the default build, without
+`-Dnative=true`; `-march=native` can move the last digit of PLUMED's
+numerical derivative in `rt-smooth-numder/forces.dat`.
 
 A change to an action keeps every regtest reference unchanged unless the
 change is meant to move the number. Regenerate a `*.reference` only in
