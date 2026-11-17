@@ -25,6 +25,13 @@ def run(command: list[str], work: pathlib.Path) -> None:
         raise SystemExit(result.returncode)
 
 
+def linked_kernel(executable: str) -> pathlib.Path | None:
+    """Return the kernel a directly linked executable resolves at load time."""
+    listing = subprocess.check_output(["ldd", executable], text=True)
+    match = re.search(r"libplumedKernel\.\S+\s+=>\s+(\S+)", listing)
+    return pathlib.Path(match.group(1)) if match else None
+
+
 def identify_plumed(plumed: str, work: pathlib.Path) -> None:
     run([plumed, "info", "--version"], work)
     executable = shutil.which(plumed)
@@ -35,11 +42,12 @@ def identify_plumed(plumed: str, work: pathlib.Path) -> None:
     )
     match = re.search(r"-D__PLUMED_DEFAULT_KERNEL=([^\s]+)", configuration)
     configured = pathlib.Path(match.group(1)) if match else None
-    selected = (
-        pathlib.Path(os.environ["PLUMED_KERNEL"])
-        if "PLUMED_KERNEL" in os.environ
-        else configured
-    )
+    if "PLUMED_KERNEL" in os.environ:
+        selected = pathlib.Path(os.environ["PLUMED_KERNEL"])
+    elif configured is not None:
+        selected = configured
+    else:
+        selected = linked_kernel(executable)
     if selected is None:
         raise SystemExit("cannot determine the PLUMED kernel")
     selected = selected.resolve()
