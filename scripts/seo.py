@@ -129,6 +129,10 @@ def enhance_site(root: Path) -> None:
     ElementTree.ElementTree(sitemap).write(
         root / "sitemap.xml", encoding="utf-8", xml_declaration=True
     )
+    (root / "robots.txt").write_text(
+        f"User-agent: *\nAllow: /\nSitemap: {urljoin(SITE_URL, 'sitemap.xml')}\n",
+        encoding="utf-8",
+    )
 
 
 def check_site(root: Path) -> None:
@@ -169,6 +173,15 @@ def check_site(root: Path) -> None:
         missing = required - tags.keys()
         if missing:
             raise RuntimeError(f"{page}: missing metadata {sorted(missing)}")
+        og_images = re.findall(
+            r'<meta\b[^>]*property=["\']og:image["\'][^>]*content=["\']([^"\']*)["\'][^>]*>',
+            text,
+            re.I,
+        )
+        if og_images != [IMAGE]:
+            raise RuntimeError(f"{page}: expected exactly one non-empty og:image")
+        if tags[("name", "twitter:image")] != IMAGE:
+            raise RuntimeError(f"{page}: twitter:image must be {IMAGE}")
         description = html.unescape(tags[("name", "description")])
         canonical_matches = re.findall(
             r'<link\b[^>]*rel=["\']canonical["\'][^>]*href=["\']([^"\']+)["\'][^>]*>',
@@ -201,6 +214,13 @@ def check_site(root: Path) -> None:
     locations = {node.text for node in sitemap.findall(".//{*}loc")}
     if locations != canonicals:
         raise RuntimeError("sitemap URLs do not match generated HTML canonicals")
+    robots = (root / "robots.txt").read_text(encoding="utf-8").splitlines()
+    if robots != [
+        "User-agent: *",
+        "Allow: /",
+        f"Sitemap: {urljoin(SITE_URL, 'sitemap.xml')}",
+    ]:
+        raise RuntimeError("robots.txt must allow crawling and name the custom-domain sitemap")
     print(f"SEO validated for {len(html_pages)} HTML pages")
 
 
