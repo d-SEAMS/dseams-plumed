@@ -1,49 +1,56 @@
 name: Release
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
 
 permissions:
   contents: write
+
+env:
+  SEAMS_CORE_TAG: v2.14.0
+  EIGEN_SHA256: b4c198460eba6f28d34894e3a5710998818515104d6e74e5cc331ce31e46e626
 
 jobs:
   nest-archive:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/test-env
         with:
-          ref: ${{ github.event.release.tag_name }}
-      - name: Install the test environment
-        run: |
-          mkdir -p .tools
-          curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest |
-            tar -xj -C .tools --strip-components=1 bin/micromamba
-          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba create -y -p .test-env \
-            -c conda-forge plumed=2.10.2 cxx-compiler zlib python=3.12
+          toolchain: gcc
       - name: Fetch pinned source inputs
         run: |
-          git clone --depth 1 --branch v2.14.0 \
+          git clone --depth 1 --branch "$SEAMS_CORE_TAG" \
             https://github.com/d-SEAMS/seams-core.git .sources/seams-core
-          curl -L https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2 \
+          curl -fsSL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2 \
             -o .sources/eigen.tar.bz2
-          echo "b4c198460eba6f28d34894e3a5710998818515104d6e74e5cc331ce31e46e626  .sources/eigen.tar.bz2" |
-            sha256sum -c -
+          echo "${EIGEN_SHA256}  .sources/eigen.tar.bz2" | sha256sum -c -
           tar -xjf .sources/eigen.tar.bz2 -C .sources
       - name: Build and verify the NEST archive
-        env:
-          VERSION: ${{ github.event.release.tag_name }}
         run: |
-          VERSION="${VERSION#v}"
           .test-env/bin/python scripts/build_nest_zip.py \
-            --version "$VERSION" --seams-root .sources/seams-core \
-            --eigen-root .sources/eigen-3.4.0
+            --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
+          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          python3 scripts/project_version.py --check --tag "$GITHUB_REF_NAME" --archive "$ARCHIVE"
           MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
-            python tests/nest_zip_check.py plumed "dist/dseams-plumed-v${VERSION}-nest.zip"
-      - name: Attach the verified archive
+            python tests/nest_zip_check.py plumed "$ARCHIVE"
+      - name: Create a draft release and attach the verified archive
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ github.event.release.tag_name }}
         run: |
-          VERSION="${VERSION#v}"
-          gh release upload "${{ github.event.release.tag_name }}" \
-            "dist/dseams-plumed-v${VERSION}-nest.zip" --clobber
+          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+            --title "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "$ARCHIVE"
+          gh release download "$GITHUB_REF_NAME" --pattern "${ARCHIVE##*/}" --dir .draft-check
+          cmp ".draft-check/${ARCHIVE##*/}" "$ARCHIVE"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false
+      - name: The published url serves the verified archive
+        run: |
+          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          url="$(sed -n 's/^url: //p' nest/nest.yml)"
+          curl -fsSL -o published.zip "$url"
+          cmp published.zip "$ARCHIVE"
