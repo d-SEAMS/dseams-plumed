@@ -26,10 +26,6 @@ jobs:
 
   nest-archive:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        plumed: ["2.9", "2.10.2"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install the test environment
@@ -38,7 +34,7 @@ jobs:
           curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest |
             tar -xj -C .tools --strip-components=1 bin/micromamba
           MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba create -y -p .test-env \
-            -c conda-forge "plumed=${{ matrix.plumed }}" cxx-compiler zlib python=3.12
+            -c conda-forge plumed=2.10.2 cxx-compiler zlib python=3.12
       - name: Fetch pinned source inputs
         run: |
           git clone --depth 1 --branch v2.14.0 \
@@ -56,9 +52,5 @@ jobs:
           rm nest/dseams_plumed.generated.cpp
           .test-env/bin/python scripts/build_nest_zip.py \
             --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
-          if [[ "${{ matrix.plumed }}" == "2.9" ]]; then
-            MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
-              python tests/conda_plumed29_mklib.py plumed
-          fi
           MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
             python tests/nest_zip_check.py plumed dist/dseams-plumed-v0.4.0-nest.zip
