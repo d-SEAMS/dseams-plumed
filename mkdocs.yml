@@ -1,9 +1,11 @@
 site_name: dseams-plumed
-site_description: The d-SEAMS topological ice score as a PLUMED action
+site_description: PLUMED action for d-SEAMS topological ice and cage analysis with the Chemical Identification of Local Liquid-like and Solid-like Habitats Plus classifier
 site_url: https://plumed.dseams.info/
 repo_url: https://github.com/d-SEAMS/dseams-plumed
 repo_name: d-SEAMS/dseams-plumed
 edit_uri: edit/main/docs/
+hooks:
+  - scripts/seo.py
 exclude_docs: |
   requirements.txt
 copyright: MIT licensed. Cite 10.1021/acs.jcim.0c00031.

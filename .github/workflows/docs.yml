@@ -17,7 +17,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r docs/requirements.txt
-      - run: mkdocs build --strict
+      - name: Build and validate documentation SEO
+        run: |
+          mkdocs build --strict
+          python scripts/seo.py --check site
       - name: Link check
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
