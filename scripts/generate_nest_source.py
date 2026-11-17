@@ -33,7 +33,30 @@ CORE_SOURCES = (
 )
 
 INCLUDE_RE = re.compile(r'^(\s*)#\s*include\s*[<"]([^>"]+)[>"]\s*(?://.*)?$')
+STD_INCLUDE_RE = re.compile(r"^\s*#\s*include\s*<([a-z0-9_]+)>", re.MULTILINE)
 OMIT_INCLUDES: set[str] = set()
+
+# Standard headers the compat shims and the bundled Eigen headers use. The
+# amalgamated seams-core sources contribute their own list.
+SHIM_STD_HEADERS = {"cstddef", "cstdint", "type_traits"}
+EIGEN_STD_HEADERS = {
+    "algorithm",
+    "array",
+    "cassert",
+    "cmath",
+    "complex",
+    "cstddef",
+    "cstdlib",
+    "cstring",
+    "functional",
+    "iosfwd",
+    "limits",
+    "new",
+    "sstream",
+    "stdexcept",
+    "string",
+    "vector",
+}
 
 
 def git_output(root: Path, *args: str) -> str:
@@ -147,6 +170,56 @@ class Amalgamator:
         return path.name
 
 
+COMPAT_SHIMS = (
+    "\n"
+    "namespace dseams_compat {\n"
+    "template <typename T> class span {\n"
+    "  T *data_;\n"
+    "  std::size_t size_;\n"
+    "public:\n"
+    "  span(T *data, std::size_t size) : data_(data), size_(size) {}\n"
+    "  T *data() const { return data_; }\n"
+    "  std::size_t size() const { return size_; }\n"
+    "  T &operator[](std::size_t i) const { return data_[i]; }\n"
+    "};\n"
+    "template <typename T> constexpr int popcount(T value) {\n"
+    "  using U = std::make_unsigned_t<T>;\n"
+    "  U bits = static_cast<U>(value);\n"
+    "  int count = 0;\n"
+    "  while (bits != 0) { bits &= bits - 1; ++count; }\n"
+    "  return count;\n"
+    "}\n"
+    "template <typename T> constexpr int countr_zero(T value) {\n"
+    "  using U = std::make_unsigned_t<T>;\n"
+    "  U bits = static_cast<U>(value);\n"
+    "  int count = 0;\n"
+    "  while ((bits & U{1}) == 0) { bits >>= 1; ++count; }\n"
+    "  return count;\n"
+    "}\n"
+    "} // namespace dseams_compat\n"
+)
+
+
+def preamble(standard_headers: list[str]) -> str:
+    includes = "".join(f"#include <{name}>\n" for name in standard_headers)
+    return (
+        "/*\n"
+        " * Generated source for the dseams-plumed PLUMED-NEST archive.\n"
+        f" * dseams-plumed action plus seams-core {SEAMS_TAG} ({SEAMS_COMMIT}).\n"
+        " * Unused optional shape and trajectory I/O code is not included.\n"
+        " * Regenerate with scripts/generate_nest_source.py; do not edit.\n"
+        " */\n"
+        "#ifndef EIGEN_MPL2_ONLY\n"
+        "#define EIGEN_MPL2_ONLY\n"
+        "#endif\n"
+        + includes
+        + COMPAT_SHIMS
+        + "#if defined(__GNUC__)\n"
+        "#pragma GCC visibility push(hidden)\n"
+        "#endif\n"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seams-root", type=Path, required=True)
@@ -161,51 +234,6 @@ def main() -> None:
         raise SystemExit(f"seams-core checkout is not tag {SEAMS_TAG}")
 
     amalgam = Amalgamator(seams)
-    amalgam.output.extend(
-        (
-            "/*\n",
-            " * Generated source for the dseams-plumed PLUMED-NEST archive.\n",
-            f" * dseams-plumed action plus seams-core {SEAMS_TAG} ({SEAMS_COMMIT}).\n",
-            " * Unused optional shape and trajectory I/O code is not included.\n",
-            " * Regenerate with scripts/generate_nest_source.py; do not edit.\n",
-            " */\n"
-            "#ifndef EIGEN_MPL2_ONLY\n"
-            "#define EIGEN_MPL2_ONLY\n"
-            "#endif\n"
-            "#include <bits/stdc++.h>\n"
-            "#include <cstddef>\n"
-            "#include <type_traits>\n"
-            "\n"
-            "namespace dseams_compat {\n"
-            "template <typename T> class span {\n"
-            "  T *data_;\n"
-            "  std::size_t size_;\n"
-            "public:\n"
-            "  span(T *data, std::size_t size) : data_(data), size_(size) {}\n"
-            "  T *data() const { return data_; }\n"
-            "  std::size_t size() const { return size_; }\n"
-            "  T &operator[](std::size_t i) const { return data_[i]; }\n"
-            "};\n"
-            "template <typename T> constexpr int popcount(T value) {\n"
-            "  using U = std::make_unsigned_t<T>;\n"
-            "  U bits = static_cast<U>(value);\n"
-            "  int count = 0;\n"
-            "  while (bits != 0) { bits &= bits - 1; ++count; }\n"
-            "  return count;\n"
-            "}\n"
-            "template <typename T> constexpr int countr_zero(T value) {\n"
-            "  using U = std::make_unsigned_t<T>;\n"
-            "  U bits = static_cast<U>(value);\n"
-            "  int count = 0;\n"
-            "  while ((bits & U{1}) == 0) { bits >>= 1; ++count; }\n"
-            "  return count;\n"
-            "}\n"
-            "} // namespace dseams_compat\n"
-            "#if defined(__GNUC__)\n"
-            "#pragma GCC visibility push(hidden)\n"
-            "#endif\n",
-        )
-    )
     for source in CORE_SOURCES:
         amalgam.add(seams / "src" / source, once=False)
     amalgam.output.extend(
@@ -217,8 +245,12 @@ def main() -> None:
     )
     amalgam.add(args.action, once=False)
 
+    body = "".join(amalgam.output)
+    standard = sorted(
+        SHIM_STD_HEADERS | EIGEN_STD_HEADERS | set(STD_INCLUDE_RE.findall(body))
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text("".join(amalgam.output))
+    args.output.write_text(preamble(standard) + body)
 
 
 if __name__ == "__main__":
