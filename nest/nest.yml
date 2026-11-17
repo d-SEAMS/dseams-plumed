@@ -10,7 +10,7 @@ authors:
   - Amrita Goswami
   - Jayant K. Singh
 doi: 10.1021/acs.jcim.0c00031
-plumed_version: "2.9"
+plumed_version: "2.10"
 history:
   2026-11-17: Initial submission of DSEAMS_CAGES built on seams-core v2.14.0.
 plumed_input:
@@ -19,11 +19,11 @@ instructions: >
   DSEAMS_CAGES is the d-SEAMS topological ice score as a PLUMED action
   with no derivatives. The three actions in plumed.dat score ice
   nucleation, a brine front, and the filled cages of a methane hydrate.
-  PLUMED 2.9 or later with a C++17 compiler. LOAD FILE=dseams_plumed.cpp
+  PLUMED 2.10 or later with a C++17 compiler. LOAD FILE=dseams_plumed.cpp
   compiles the generated action and the required seams-core v2.14.0
   implementation from the archive; no installed d-SEAMS library is
   required. The included frame.xyz runs all three actions and has pinned
   ICE, BRINE, and HYDRATE reference outputs. ATOMS is one oxygen per
   water, IONS one atom per ion, and GUESTS one atom per guest. The
   methods paper is 10.1021/acs.jcim.0c00031.
-md5: 5933e01e57230003891f8f2694f4fe04
+md5: a9f023b5b191ac434bfc0439bd29aff8

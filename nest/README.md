@@ -1,6 +1,6 @@
 # d-SEAMS cage counts as PLUMED collective variables
 
-This archive is self-contained source for PLUMED 2.9 or later.
+This archive is self-contained source for PLUMED 2.10 or later.
 `LOAD FILE=dseams_plumed.cpp` asks PLUMED to compile the action on first
 use. The generated source contains the required seams-core v2.14.0 code.
 The `Eigen` directory supplies its header-only matrix types; no d-SEAMS
@@ -11,13 +11,15 @@ library is required.
 optional symmetry-functions, environment-similarity, or adjacency-matrix
 modules.
 
-The compiler used by `plumed mklib` must support C++17. PLUMED 2.10
-already configures that language level. PLUMED 2.9 builds must likewise
-be configured with C++17.
+PLUMED compiles the bundled source with `plumed mklib`, which must use
+C++17. PLUMED 2.10 configures that language level. A PLUMED 2.9 build
+compiles the source only if it was configured with C++17; the default
+2.9 configuration uses C++11 and fails.
 
-The example contains a cubic-diamond ice lattice, a second lattice with
-two substitutional ions, and a periodic cubic cage lattice with 64
-guests. The three actions write `ICE`, `BRINE`, and `HYDRATE`.
+Once PLUMED compiles the source, the bundled `frame.xyz` exercises it: a
+cubic-diamond ice lattice, a second lattice with two substitutional ions,
+and a periodic cubic cage lattice with 64 guests. The three
+`DSEAMS_CAGES` actions write `ICE`, `BRINE`, and `HYDRATE`.
 
 Run the complete example from this directory:
 

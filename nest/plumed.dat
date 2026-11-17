@@ -1,4 +1,4 @@
-# PLUMED 2.9 or later. The source module includes seams-core v2.14.0.
+# PLUMED 2.10 or later. The source module includes seams-core v2.14.0.
 UNITS LENGTH=A
 LOAD FILE=dseams_plumed.cpp
 
