@@ -1,6 +1,6 @@
 site_name: dseams-plumed
 site_description: The d-SEAMS topological ice score as a PLUMED action
-site_url: https://d-seams.github.io/dseams-plumed/
+site_url: https://plumed.dseams.info/
 repo_url: https://github.com/d-SEAMS/dseams-plumed
 repo_name: d-SEAMS/dseams-plumed
 edit_uri: edit/main/docs/

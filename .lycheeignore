@@ -1,5 +1,5 @@
 # The site's own URL answers only after the first Pages deploy; the
 # built pages are checked as local files instead.
-^https://d-seams\.github\.io/dseams-plumed/
+^https://plumed\.dseams\.info/
 # ACS answers automated clients with 403.
 ^https://doi\.org/10\.1021/
