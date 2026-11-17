@@ -21,6 +21,15 @@ PRINT ARG=ice.nice,ice.nmax,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
 #+end_src
 
+* Documentation
+
+The site at https://d-seams.github.io/dseams-plumed/ carries the
+install steps and the keyword reference.
+
+- Book: [[https://docs.dseams.info/howto/engine-plumed.html][PLUMED how-to]]
+  and [[https://docs.dseams.info/walkthrough/plumed.html][PLUMED walkthrough]]
+- Video: [[https://odysee.com/dseams-plumed:ddd2f9e27e0a126ef3feba3bb6da8378464e57df][dseams-plumed walkthrough on Odysee]]
+
 * Install
 
 Build the shared module against an installed PLUMED. Meson runs
@@ -169,7 +178,7 @@ LAMMPS =units real= matches the A unit of the engine.
 
 * Driver tests
 
-Meson registers three =plumed driver= checks.
+Meson registers four =plumed driver= checks.
 
 The nucleation check lives in =tests/driver_check.py=. It converts a
 LAMMPS dump to xyz and runs the driver with the module loaded. Per
@@ -187,6 +196,10 @@ python tests/driver_check.py $(which plumed) build/libdseams_plumed.so \
 =driver_ions= (=tests/ion_check.py=) places two ions on a cubic-diamond
 oxygen lattice. It checks =nionice= 2, =nionfront= 0, =nionliq= 0, with
 =nice= still the remaining lattice.
+
+=driver_guests= (=tests/guest_check.py=) builds a 5x5x5 simple-cubic
+lattice with =SIGNATURE=4:6= and a guest at 64 of the 125 cube centres.
+It checks =ncages= 125, =noccupied= 64, =nmultiple= 0 and =nfreeguest= 0.
 
 =driver_library= (=tests/library_check.py=) writes a cubic-diamond
 lattice, emits its key library with =seams fingerprint --emit-library=,
@@ -231,3 +244,6 @@ Elucidation Analysis for Molecular Simulations. /J. Chem. Inf. Model./
 Every push to =main= checks that the wrap revision is the seams-core
 tag =v2.14.0=, builds the module in the pixi environment, and runs the
 driver tests (=pixi run test=).
+The docs workflow builds the site with =mkdocs build --strict=, checks
+the links in this file and the site with lychee, and publishes the site
+to GitHub Pages from =main=.

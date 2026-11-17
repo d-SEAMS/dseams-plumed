@@ -4,3 +4,4 @@ dist/
 subprojects/seams-core/
 subprojects/packagecache/
 __pycache__/
+site/
