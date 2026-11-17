@@ -22,5 +22,6 @@ Elucidation Analysis for Molecular Simulations. *J. Chem. Inf. Model.*
 }
 ```
 
-Released versions are in
-[CHANGELOG.md](https://github.com/d-SEAMS/dseams-plumed/blob/main/CHANGELOG.md).
+Each release and its notes are on the
+[releases page](https://github.com/d-SEAMS/dseams-plumed/releases);
+`CHANGELOG.md` in the repository carries the full history.
