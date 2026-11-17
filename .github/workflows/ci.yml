@@ -23,3 +23,42 @@ jobs:
       - run: pixi run setup
       - run: pixi run build
       - run: pixi run test
+
+  nest-archive:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        plumed: ["2.9", "2.10.2"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install the test environment
+        run: |
+          mkdir -p .tools
+          curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest |
+            tar -xj -C .tools --strip-components=1 bin/micromamba
+          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba create -y -p .test-env \
+            -c conda-forge "plumed=${{ matrix.plumed }}" cxx-compiler zlib python=3.12
+      - name: Fetch pinned source inputs
+        run: |
+          git clone --depth 1 --branch v2.14.0 \
+            https://github.com/d-SEAMS/seams-core.git .sources/seams-core
+          curl -L https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2 \
+            -o .sources/eigen.tar.bz2
+          echo "b4c198460eba6f28d34894e3a5710998818515104d6e74e5cc331ce31e46e626  .sources/eigen.tar.bz2" |
+            sha256sum -c -
+          tar -xjf .sources/eigen.tar.bz2 -C .sources
+      - name: Build and test the NEST archive
+        run: |
+          .test-env/bin/python scripts/generate_nest_source.py \
+            --seams-root .sources/seams-core --output nest/dseams_plumed.generated.cpp
+          cmp nest/dseams_plumed.cpp nest/dseams_plumed.generated.cpp
+          rm nest/dseams_plumed.generated.cpp
+          .test-env/bin/python scripts/build_nest_zip.py \
+            --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
+          if [[ "${{ matrix.plumed }}" == "2.9" ]]; then
+            MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
+              python tests/conda_plumed29_mklib.py plumed
+          fi
+          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
+            python tests/nest_zip_check.py plumed dist/dseams-plumed-v0.4.0-nest.zip

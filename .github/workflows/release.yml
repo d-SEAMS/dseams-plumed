@@ -1,0 +1,49 @@
+name: Release
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  nest-archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Install the test environment
+        run: |
+          mkdir -p .tools
+          curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest |
+            tar -xj -C .tools --strip-components=1 bin/micromamba
+          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba create -y -p .test-env \
+            -c conda-forge plumed=2.10.2 cxx-compiler zlib python=3.12
+      - name: Fetch pinned source inputs
+        run: |
+          git clone --depth 1 --branch v2.14.0 \
+            https://github.com/d-SEAMS/seams-core.git .sources/seams-core
+          curl -L https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2 \
+            -o .sources/eigen.tar.bz2
+          echo "b4c198460eba6f28d34894e3a5710998818515104d6e74e5cc331ce31e46e626  .sources/eigen.tar.bz2" |
+            sha256sum -c -
+          tar -xjf .sources/eigen.tar.bz2 -C .sources
+      - name: Build and verify the NEST archive
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${VERSION#v}"
+          .test-env/bin/python scripts/build_nest_zip.py \
+            --version "$VERSION" --seams-root .sources/seams-core \
+            --eigen-root .sources/eigen-3.4.0
+          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
+            python tests/nest_zip_check.py plumed "dist/dseams-plumed-v${VERSION}-nest.zip"
+      - name: Attach the verified archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${VERSION#v}"
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "dist/dseams-plumed-v${VERSION}-nest.zip" --clobber
