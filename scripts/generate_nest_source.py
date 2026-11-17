@@ -129,8 +129,6 @@ class Amalgamator:
                 if dependency is not None:
                     self.add(dependency, once=True)
                     continue
-            old_name = "cur" + "sor"
-            line = re.sub(old_name, "position", line, flags=re.IGNORECASE)
             line = line.replace("std::span", "dseams_compat::span")
             line = line.replace("std::popcount", "dseams_compat::popcount")
             line = line.replace("std::countr_zero", "dseams_compat::countr_zero")

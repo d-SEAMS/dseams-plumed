@@ -7156,7 +7156,7 @@ bool chill::chillPlusPublishedCutoff(
       next[static_cast<std::size_t>(i)] = head[static_cast<std::size_t>(c)];
       head[static_cast<std::size_t>(c)] = i;
     }
-    std::vector<int> position = scratch.offsets;
+    std::vector<int> cursor = scratch.offsets;
 #ifdef SEAMS_HAS_OPENMP
 #pragma omp parallel for schedule(static) if (n >= 256)
 #endif
@@ -7173,7 +7173,7 @@ bool chill::chillPlusPublishedCutoff(
       const int ix = std::min(nx - 1, static_cast<int>(x * invx));
       const int iy = std::min(ny - 1, static_cast<int>(y * invy));
       const int iz = std::min(nz - 1, static_cast<int>(z * invz));
-      int slot = position[static_cast<std::size_t>(i)];
+      int slot = cursor[static_cast<std::size_t>(i)];
       for (int dz = -1; dz <= 1; dz++) {
         for (int dy = -1; dy <= 1; dy++) {
           for (int dx = -1; dx <= 1; dx++) {
@@ -7212,12 +7212,12 @@ bool chill::chillPlusPublishedCutoff(
       }
     }
   } else {
-  std::vector<int> position = scratch.offsets;
+  std::vector<int> cursor = scratch.offsets;
   for (std::size_t t = 0; t < scratch.ii.size(); t++) {
     const int i = scratch.ii[t];
     const int j = scratch.jj[t];
     if (i >= 0 && j >= 0 && i < n && j < n && i != j) {
-      scratch.cols[static_cast<std::size_t>(position[static_cast<std::size_t>(i)]++)] = j;
+      scratch.cols[static_cast<std::size_t>(cursor[static_cast<std::size_t>(i)]++)] = j;
     }
   }
   }
@@ -10059,7 +10059,7 @@ struct FrameContext {
   bool allHex = false;
   // Kept across warm prepares so the inverted index is not allocated again.
   std::vector<int> refillCount;
-  std::vector<int> refillposition;
+  std::vector<int> refillCursor;
   bool reuseScratch = false;
 
   FrameContext() = default;
@@ -10171,13 +10171,13 @@ struct FrameContext {
     }
     const int total = index.ringOff[static_cast<std::size_t>(numAtoms)];
     index.ringCol.resize(static_cast<std::size_t>(total));
-    refillposition.assign(index.ringOff.begin(),
+    refillCursor.assign(index.ringOff.begin(),
                         index.ringOff.end() - 1);
     for (int iring = 0; iring < nRings; ++iring) {
       for (const int atom : rings_[static_cast<std::size_t>(iring)]) {
         if (atom >= 0 && atom < numAtoms) {
           index.ringCol[static_cast<std::size_t>(
-              refillposition[static_cast<std::size_t>(atom)]++)] = iring;
+              refillCursor[static_cast<std::size_t>(atom)]++)] = iring;
         }
       }
     }
@@ -13045,15 +13045,15 @@ struct ClosedSearch {
     }
     auto lay = [&](IdRows &rows) {
       rows.off.assign(static_cast<size_t>(nRings) + 1, 0);
-      int position = 0;
+      int cursor = 0;
       for (int i = 0; i < nRings; ++i) {
-        rows.off[static_cast<size_t>(i)] = position;
+        rows.off[static_cast<size_t>(i)] = cursor;
         if (keep[static_cast<size_t>(i)] != 0) {
-          position += ringSize[static_cast<size_t>(i)];
+          cursor += ringSize[static_cast<size_t>(i)];
         }
       }
-      rows.off[static_cast<size_t>(nRings)] = position;
-      rows.col.assign(static_cast<size_t>(position), 0);
+      rows.off[static_cast<size_t>(nRings)] = cursor;
+      rows.col.assign(static_cast<size_t>(cursor), 0);
     };
     lay(ringEdges);
     lay(ringWedges);
@@ -13383,10 +13383,10 @@ struct ClosedSearch {
           static_cast<std::size_t>(indexTeam),
           std::vector<int>(static_cast<std::size_t>(nEdge), 0));
       for (int e = 0; e < nEdge; ++e) {
-        int position = ringsOfEdge.off[static_cast<std::size_t>(e)];
+        int cursor = ringsOfEdge.off[static_cast<std::size_t>(e)];
         for (int t = 0; t < indexTeam; ++t) {
-          start[static_cast<std::size_t>(t)][static_cast<std::size_t>(e)] = position;
-          position += part[static_cast<std::size_t>(t)][static_cast<std::size_t>(e)];
+          start[static_cast<std::size_t>(t)][static_cast<std::size_t>(e)] = cursor;
+          cursor += part[static_cast<std::size_t>(t)][static_cast<std::size_t>(e)];
         }
       }
 #if defined(SEAMS_HAS_OPENMP)
@@ -13403,11 +13403,11 @@ struct ClosedSearch {
         const int c0 = static_cast<int>((static_cast<long long>(nCandRows) * tid) / team);
         const int c1 =
             static_cast<int>((static_cast<long long>(nCandRows) * (tid + 1)) / team);
-        auto &position = start[static_cast<std::size_t>(tid)];
+        auto &cursor = start[static_cast<std::size_t>(tid)];
         for (int ci = c0; ci < c1; ++ci) {
           const int i = cand[static_cast<std::size_t>(ci)];
           for (const int e : ringEdges[static_cast<std::size_t>(i)]) {
-            ringsOfEdge.col[static_cast<std::size_t>(position[static_cast<std::size_t>(e)]++)] = i;
+            ringsOfEdge.col[static_cast<std::size_t>(cursor[static_cast<std::size_t>(e)]++)] = i;
           }
         }
       }
@@ -17279,7 +17279,7 @@ struct Scratch {
   std::vector<int> cellStart;
   std::vector<int> hist;
   std::vector<int> counts;
-  std::vector<int> position;
+  std::vector<int> cursor;
   // Neighbour ids of each packed slot, stride kSlotRow, and the slot of
   // each cloud index (-1 outside the subset). Left uninitialised so the
   // team, not the caller, first touches the pages it writes.
@@ -19033,10 +19033,10 @@ bool ownedBlockPairs(const double *x, const double *y, const double *z, const in
       std::vector<double> ly(static_cast<std::size_t>(total));
       std::vector<double> lz(static_cast<std::size_t>(total));
       std::vector<int> lid(static_cast<std::size_t>(total));
-      int position = 0;
+      int cursor = 0;
       auto copyCell = [&](int c) {
-        for (int s = cellStart[c]; s < cellStart[c + 1]; ++s, ++position) {
-          const std::size_t u = static_cast<std::size_t>(position);
+        for (int s = cellStart[c]; s < cellStart[c + 1]; ++s, ++cursor) {
+          const std::size_t u = static_cast<std::size_t>(cursor);
           lx[u] = x[s];
           ly[u] = y[s];
           lz[u] = z[s];
@@ -26247,18 +26247,18 @@ bool nneigh::blockWindowRows(
     }
     degree[static_cast<std::size_t>(i)] = sum;
   }
-  std::vector<int> position(static_cast<std::size_t>(n) + 1, 0);
+  std::vector<int> cursor(static_cast<std::size_t>(n) + 1, 0);
   for (int i = 0; i < n; i++) {
-    position[static_cast<std::size_t>(i) + 1] =
-        position[static_cast<std::size_t>(i)] + degree[static_cast<std::size_t>(i)];
+    cursor[static_cast<std::size_t>(i) + 1] =
+        cursor[static_cast<std::size_t>(i)] + degree[static_cast<std::size_t>(i)];
   }
-  std::vector<int> partner(static_cast<std::size_t>(position[static_cast<std::size_t>(n)]));
+  std::vector<int> partner(static_cast<std::size_t>(cursor[static_cast<std::size_t>(n)]));
   std::vector<int> threadAt(static_cast<std::size_t>(nThreads) * static_cast<std::size_t>(n), 0);
 #ifdef SEAMS_HAS_OPENMP
 #pragma omp parallel for schedule(static) if (nThreads > 1)
 #endif
   for (int i = 0; i < n; i++) {
-    int at = position[static_cast<std::size_t>(i)];
+    int at = cursor[static_cast<std::size_t>(i)];
     for (int t = 0; t < nThreads; t++) {
       threadAt[static_cast<std::size_t>(t) * static_cast<std::size_t>(n) +
                static_cast<std::size_t>(i)] = at;
@@ -26314,8 +26314,8 @@ bool nneigh::blockWindowRows(
     if (!anchor[static_cast<std::size_t>(i)]) {
       continue;
     }
-    const int begin = position[static_cast<std::size_t>(i)];
-    const int end = position[static_cast<std::size_t>(i) + 1];
+    const int begin = cursor[static_cast<std::size_t>(i)];
+    const int end = cursor[static_cast<std::size_t>(i) + 1];
     std::sort(partner.begin() + begin, partner.begin() + end);
     int prev = -1;
     for (int t = begin; t < end; t++) {
@@ -27788,10 +27788,10 @@ void fillGraphFromNom(
     }
     std::vector<int> inSlot(static_cast<std::size_t>(inOff[static_cast<std::size_t>(n)]));
     {
-      std::vector<int> position(inOff.begin(), inOff.end() - 1);
+      std::vector<int> cursor(inOff.begin(), inOff.end() - 1);
       for (std::size_t s = 0; s < slots; s++) {
         if (accepted[s] != 0) {
-          inSlot[static_cast<std::size_t>(position[static_cast<std::size_t>(nom[s])]++)] =
+          inSlot[static_cast<std::size_t>(cursor[static_cast<std::size_t>(nom[s])]++)] =
               static_cast<int>(s);
         }
       }
@@ -28044,12 +28044,12 @@ void csrFromRows(const molSys::PointCloud<molSys::Point<double>, double> &yCloud
     if (static_cast<int>(idx.size()) <= i) {
       continue;
     }
-    int position = offsets[static_cast<std::size_t>(i)];
+    int cursor = offsets[static_cast<std::size_t>(i)];
     for (int id : idx[static_cast<std::size_t>(i)]) {
       if (id == i) {
         continue;
       }
-      cols[static_cast<std::size_t>(position++)] = id;
+      cols[static_cast<std::size_t>(cursor++)] = id;
     }
   }
 }
@@ -28118,12 +28118,12 @@ extern "C" void csrFillSlab(void *raw, int begin, int end) {
       }
       low[b] = v;
     }
-    int position = offsets[static_cast<std::size_t>(i)];
+    int cursor = offsets[static_cast<std::size_t>(i)];
     for (int t = 0; t < nlow; ++t) {
-      cols[static_cast<std::size_t>(position++)] = low[t];
+      cols[static_cast<std::size_t>(cursor++)] = low[t];
     }
     for (int t = 0; t < nhigh; ++t) {
-      cols[static_cast<std::size_t>(position++)] = high[t];
+      cols[static_cast<std::size_t>(cursor++)] = high[t];
     }
   }
 }
@@ -33569,11 +33569,11 @@ ring::buildRingSearchIndex(const std::vector<std::vector<int>> &rings,
     }
     index.ringCol.assign(static_cast<std::size_t>(index.ringOff[static_cast<std::size_t>(numAtoms)]),
                          0);
-    std::vector<int> position(index.ringOff.begin(), index.ringOff.end() - 1);
+    std::vector<int> cursor(index.ringOff.begin(), index.ringOff.end() - 1);
     for (int iring = 0; iring < nRings; iring++) {
       for (const int atom : rings[static_cast<std::size_t>(iring)]) {
         if (atom >= 0 && atom < numAtoms) {
-          index.ringCol[static_cast<std::size_t>(position[static_cast<std::size_t>(atom)]++)] =
+          index.ringCol[static_cast<std::size_t>(cursor[static_cast<std::size_t>(atom)]++)] =
               iring;
         }
       }
@@ -33626,10 +33626,10 @@ ring::buildRingSearchIndex(const std::vector<std::vector<int>> &rings,
     head[static_cast<std::size_t>(t)].resize(static_cast<std::size_t>(numAtoms));
   }
   for (int atom = 0; atom < numAtoms; atom++) {
-    int position = base[static_cast<std::size_t>(atom)];
+    int cursor = base[static_cast<std::size_t>(atom)];
     for (int t = 0; t < nThreads; t++) {
-      head[static_cast<std::size_t>(t)][static_cast<std::size_t>(atom)] = position;
-      position += counts[static_cast<std::size_t>(t)][static_cast<std::size_t>(atom)];
+      head[static_cast<std::size_t>(t)][static_cast<std::size_t>(atom)] = cursor;
+      cursor += counts[static_cast<std::size_t>(t)][static_cast<std::size_t>(atom)];
     }
   }
 #ifdef SEAMS_HAS_OPENMP
@@ -33641,14 +33641,14 @@ ring::buildRingSearchIndex(const std::vector<std::vector<int>> &rings,
 #else
     const int tid = 0;
 #endif
-    auto &position = head[static_cast<std::size_t>(tid)];
+    auto &cursor = head[static_cast<std::size_t>(tid)];
 #ifdef SEAMS_HAS_OPENMP
 #pragma omp for schedule(static)
 #endif
     for (int iring = 0; iring < nRings; iring++) {
       for (const int atom : rings[static_cast<std::size_t>(iring)]) {
         if (atom >= 0 && atom < numAtoms) {
-          flat[static_cast<std::size_t>(position[static_cast<std::size_t>(atom)]++)] = iring;
+          flat[static_cast<std::size_t>(cursor[static_cast<std::size_t>(atom)]++)] = iring;
         }
       }
     }
