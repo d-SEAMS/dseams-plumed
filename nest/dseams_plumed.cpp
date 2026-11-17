@@ -4,6 +4,9 @@
  * Unused optional shape and trajectory I/O code is not included.
  * Regenerate with scripts/generate_nest_source.py; do not edit.
  */
+#ifndef EIGEN_MPL2_ONLY
+#define EIGEN_MPL2_ONLY
+#endif
 #include <bits/stdc++.h>
 #include <cstddef>
 #include <type_traits>

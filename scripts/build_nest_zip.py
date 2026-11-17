@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import re
 import shutil
 import subprocess
 import tempfile
@@ -13,6 +14,16 @@ from pathlib import Path
 
 VERSION = "0.4.0"
 ZIP_TIME = (2026, 1, 1, 0, 0, 0)
+
+EIGEN_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
+EIGEN_EXTERNAL = {"mkl_lapacke.h", "lapacke_config.h"}
+EIGEN_LICENSE_MARKERS = {
+    "COPYING.APACHE": r"Licensed under the Apache License",
+    "COPYING.BSD": r"Software License Agreement \(BSD License\)",
+    "COPYING.LGPL": r"GNU LGPL|Lesser General Public License",
+    "COPYING.MINPACK": r"(?i)minpack",
+}
+EIGEN_ALWAYS = ("COPYING.README", "COPYING.MPL2")
 
 
 def diamond(repetitions: int, bond: float = 2.75) -> tuple[list[tuple[float, float, float]], float]:
@@ -64,6 +75,55 @@ def write_frame(path: Path) -> None:
             stream.write(f"{element} {x:.10f} {y:.10f} {z:.10f}\n")
 
 
+def eigen_closure(eigen_root: Path, source: str) -> list[Path]:
+    """Return every Eigen header the amalgamation can include, as paths."""
+    pending = [
+        eigen_root / name
+        for name in (
+            match.group(1)
+            for match in map(EIGEN_INCLUDE.match, source.splitlines())
+            if match
+        )
+        if name.startswith("Eigen/")
+    ]
+    if not pending:
+        raise SystemExit("the generated source includes no Eigen header")
+    seen: set[Path] = set()
+    while pending:
+        header = pending.pop().resolve()
+        if header in seen:
+            continue
+        seen.add(header)
+        for line in header.read_text(errors="replace").splitlines():
+            match = EIGEN_INCLUDE.match(line)
+            if match is None:
+                continue
+            name = match.group(1)
+            for base in (header.parent, eigen_root):
+                candidate = base / name
+                if candidate.is_file():
+                    pending.append(candidate)
+                    break
+            else:
+                if name not in EIGEN_EXTERNAL:
+                    raise SystemExit(f"unresolved Eigen include {name} in {header}")
+    return sorted(seen)
+
+
+def eigen_licenses(eigen_root: Path, headers: list[Path]) -> list[str]:
+    """Return the Eigen COPYING files the bundled headers require."""
+    needed = set(EIGEN_ALWAYS)
+    for header in headers:
+        text = header.read_text(errors="replace")
+        for name, marker in EIGEN_LICENSE_MARKERS.items():
+            if re.search(marker, text):
+                needed.add(name)
+    for name in needed:
+        if not (eigen_root / name).is_file():
+            raise SystemExit(f"{name} is missing from the Eigen tree")
+    return sorted(needed)
+
+
 def add_tree(archive: zipfile.ZipFile, root: Path) -> None:
     for path in sorted(root.rglob("*")):
         if path.is_dir():
@@ -111,10 +171,17 @@ def main() -> None:
         shutil.copy2(repository / "nest" / "README.md", root / "README.md")
         shutil.copy2(repository / "nest" / "plumed.dat", root / "plumed.dat")
         shutil.copy2(tracked, root / "dseams_plumed.cpp")
-        shutil.copytree(args.eigen_root / "Eigen", root / "Eigen")
+        eigen_root = args.eigen_root.resolve()
+        headers = eigen_closure(eigen_root, tracked.read_text())
+        for header in headers:
+            destination = root / header.relative_to(eigen_root)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(header, destination)
         shutil.copy2(repository / "LICENSE", root / "LICENSE-dseams-plumed")
         shutil.copy2(args.seams_root / "LICENSE", root / "LICENSE-seams-core")
-        shutil.copy2(args.eigen_root / "COPYING.MPL2", root / "LICENSE-Eigen")
+        (root / "LICENSE-Eigen").mkdir()
+        for name in eigen_licenses(eigen_root, headers):
+            shutil.copy2(eigen_root / name, root / "LICENSE-Eigen" / name)
         shutil.copytree(repository / "nest" / "reference", root / "reference")
         write_frame(root / "frame.xyz")
 

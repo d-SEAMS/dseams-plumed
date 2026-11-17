@@ -169,6 +169,9 @@ def main() -> None:
             " * Unused optional shape and trajectory I/O code is not included.\n",
             " * Regenerate with scripts/generate_nest_source.py; do not edit.\n",
             " */\n"
+            "#ifndef EIGEN_MPL2_ONLY\n"
+            "#define EIGEN_MPL2_ONLY\n"
+            "#endif\n"
             "#include <bits/stdc++.h>\n"
             "#include <cstddef>\n"
             "#include <type_traits>\n"

@@ -3,8 +3,10 @@
 This archive is self-contained source for PLUMED 2.10 or later.
 `LOAD FILE=dseams_plumed.cpp` asks PLUMED to compile the action on first
 use. The generated source contains the required seams-core v2.14.0 code.
-The `Eigen` directory supplies its header-only matrix types; no d-SEAMS
-library is required.
+The `Eigen` directory contains the Eigen 3.4.0 headers the source includes,
+and `LICENSE-Eigen` contains the matching `COPYING` files. The source defines
+`EIGEN_MPL2_ONLY`. With that macro set, Eigen refuses any header under the
+Lesser General Public License. No d-SEAMS library is required.
 
 `plumed.dat` uses only the core `UNITS`, `LOAD`, and `PRINT` directives.
 `DSEAMS_CAGES` is defined by the bundled source. It does not require the
