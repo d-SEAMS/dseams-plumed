@@ -12,7 +12,8 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-VERSION = "0.4.0"
+from project_version import archive_name, read_version
+
 ZIP_TIME = (2026, 1, 1, 0, 0, 0)
 
 EIGEN_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
@@ -139,12 +140,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--seams-root", type=Path, required=True)
     parser.add_argument("--eigen-root", type=Path, required=True)
-    parser.add_argument("--version", default=VERSION)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     repository = Path(__file__).resolve().parents[1]
+    version = read_version(repository)
     if args.output is None:
-        args.output = Path("dist") / f"dseams-plumed-v{args.version}-nest.zip"
+        args.output = Path("dist") / archive_name(version)
 
     with tempfile.TemporaryDirectory(prefix="dseams-nest-") as temporary:
         temporary = Path(temporary)
@@ -166,7 +167,7 @@ def main() -> None:
         if generated.read_bytes() != tracked.read_bytes():
             raise SystemExit("nest/dseams_plumed.cpp is not regenerated")
 
-        root = temporary / f"dseams-plumed-v{args.version}-nest"
+        root = temporary / f"dseams-plumed-v{version}-nest"
         root.mkdir()
         shutil.copy2(repository / "nest" / "README.md", root / "README.md")
         shutil.copy2(repository / "nest" / "plumed.dat", root / "plumed.dat")

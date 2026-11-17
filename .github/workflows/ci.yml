@@ -15,6 +15,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Engine pin is the seams-core tag
         run: python3 tests/check_engine_pin.py
+      - name: Version copies agree with meson.build
+        run: python3 scripts/project_version.py --check
       - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
         with:
           environments: default
@@ -52,5 +54,7 @@ jobs:
           rm nest/dseams_plumed.generated.cpp
           .test-env/bin/python scripts/build_nest_zip.py \
             --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
+          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          python3 scripts/project_version.py --check --archive "$ARCHIVE"
           MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
-            python tests/nest_zip_check.py plumed dist/dseams-plumed-v0.4.0-nest.zip
+            python tests/nest_zip_check.py plumed "$ARCHIVE"
