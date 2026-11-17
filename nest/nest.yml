@@ -1,4 +1,4 @@
-url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v0.4.0/dseams-plumed-v0.4.0-nest.zip
+url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v0.4.1/dseams-plumed-v0.4.1-nest.zip
 pname: d-SEAMS cage counts
 title: d-SEAMS cage counts as PLUMED collective variables
 category: methods
@@ -26,4 +26,4 @@ instructions: >
   ICE, BRINE, and HYDRATE reference outputs. ATOMS is one oxygen per
   water, IONS one atom per ion, and GUESTS one atom per guest. The
   methods paper is 10.1021/acs.jcim.0c00031.
-md5: a9f023b5b191ac434bfc0439bd29aff8
+md5: f853d7b088b0d934aa73bd64cc7963ad

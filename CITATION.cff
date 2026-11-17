@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below."
 title: "dseams-plumed: the d-SEAMS topological ice score as a PLUMED action"
 type: software
-version: "0.4.0"
+version: "0.4.1"
 date-released: "2026-11-17"
 license: MIT
 repository-code: "https://github.com/d-SEAMS/dseams-plumed"
