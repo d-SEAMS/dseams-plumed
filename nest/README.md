@@ -6,6 +6,11 @@ use. The generated source contains the required seams-core v2.14.0 code.
 The `Eigen` directory supplies its header-only matrix types; no d-SEAMS
 library is required.
 
+`plumed.dat` uses only the core `UNITS`, `LOAD`, and `PRINT` directives.
+`DSEAMS_CAGES` is defined by the bundled source. It does not require the
+optional symmetry-functions, environment-similarity, or adjacency-matrix
+modules.
+
 The compiler used by `plumed mklib` must support C++17. PLUMED 2.10
 already configures that language level. PLUMED 2.9 builds must likewise
 be configured with C++17.

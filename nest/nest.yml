@@ -26,4 +26,4 @@ instructions: >
   ICE, BRINE, and HYDRATE reference outputs. ATOMS is one oxygen per
   water, IONS one atom per ion, and GUESTS one atom per guest. The
   methods paper is 10.1021/acs.jcim.0c00031.
-md5: 2310a341ec4763796d660b1ebce34c71
+md5: 5933e01e57230003891f8f2694f4fe04
