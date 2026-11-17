@@ -50,6 +50,18 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <stdlib.h>
+#if defined(__linux__)
+#include <sched.h>
+#endif
+#if defined(__x86_64__) && defined(__linux__)
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
+#include <cpuid.h>
+#include <immintrin.h>
+#endif
 
 namespace dseams_compat {
 template <typename T> class span {
@@ -33363,59 +33375,6 @@ void ddcKeepRoom(const std::vector<std::vector<int>> &rings,
  * @param[in] maxDepth The maximum possible size of the primitive rings.
  * @param[in] firstFrame The first frame to be analyzed
  */
-int ring::bulkPolygonRingAnalysis(
-    std::string path, const std::vector<std::vector<int>> &rings,
-    const std::vector<std::vector<int>> &nList,
-    molSys::PointCloud<molSys::Point<double>, double> &yCloud, int maxDepth,
-    int firstFrame) {
-  //
-  std::vector<std::vector<int>>
-      ringsOneType;           // Vector of vectors of rings of a single size
-  int nRings;                 // Number of rings of the current type
-  std::vector<int> nRingList; // Vector of the values of the number of rings
-                              // for a particular frame
-  std::vector<int>
-      atomTypes; // contains int values for each ring type considered
-  // -------------------------------------------------------------------------------
-  // Init
-  nRingList.resize(
-      static_cast<std::size_t>(maxDepth - 2)); // Has a value for every value of ringSize from 3, upto maxDepth
-  // The atomTypes vector is the same size as the pointCloud atoms
-  atomTypes.resize(static_cast<std::size_t>(yCloud.nop), 1); // The dummy or unclassified value is 1
-  // -------------------------------------------------------------------------------
-  // Run this loop for rings of sizes upto maxDepth
-  // The smallest possible ring is of size 3
-  for (int ringSize = 3; ringSize <= maxDepth; ringSize++) {
-    // Clear ringsOneType
-    ring::clearRingList(ringsOneType);
-    // Get rings of the current ring size
-    ringsOneType = ring::getSingleRingSize(rings, ringSize);
-    //
-    // Continue if there are zero rings of ringSize
-    if (ringsOneType.empty()) {
-      nRingList[static_cast<std::size_t>(ringSize - 3)] = 0; // Update the number of prisms
-      continue;
-    } // skip if there are no rings
-    //
-    // -------------
-    // Number of rings with n nodes
-    nRings = static_cast<int>(ringsOneType.size());
-    // -------------
-    // Now that you have rings of a certain size:
-    nRingList[static_cast<std::size_t>(ringSize - 3)] = nRings; // Update the number of n-membered rings
-    // -------------
-  } // end of loop through every possible ringSize
-
-  // Get the atom types for all the ring types
-  ring::assignPolygonType(rings, atomTypes, nRingList);
-
-  // Write out the ring information
-  sout::writeRingNumBulk(path, yCloud.currentFrame, nRingList, maxDepth, firstFrame);
-  // Write out the lammps data file for the particular frame
-  sout::writeLAMMPSdataAllRings(yCloud, nList, atomTypes, maxDepth, path, false);
-
-  return 0;
-}
 
 // -----------------------------------------------------------------------------------------------------
 // DDC / HC ALGORITHMS
@@ -33452,123 +33411,6 @@ int ring::bulkPolygonRingAnalysis(
  *  @param[in] onlyTetrahedral Flag for only finding DDCs and HCs (true) or also
  * finding PNCs (false)
  */
-int ring::topoBulkAnalysis(
-    std::string path, const std::vector<std::vector<int>> &rings,
-    const std::vector<std::vector<int>> &nList,
-    molSys::PointCloud<molSys::Point<double>, double> &yCloud, int firstFrame,
-    bool onlyTetrahedral) {
-  //
-  // Ring IDs of each type will be saved in these vectors
-  std::vector<int> listDDC; // Vector for ring indices of DDC
-  std::vector<int> listHC;  // Vector for ring indices of HC
-  std::vector<int>
-      listMixed; // Vector for ring indices of rings that are both DDC and HC
-  std::vector<ring::strucType>
-      ringType; // This vector will have a value for each ring inside
-                // ringList, of type enum strucType in gen.hpp
-  // Make a list of all the DDCs and HCs
-  std::vector<cage::Cage> cageList;
-  std::vector<std::vector<int>>
-      ringsOneType;    // Vector of vectors of rings of a single size
-  int initRingSize;    // Todo or not: calculate the PNCs or not
-  int maxRingSize = 6; // DDCs and HCs are for 6-membered rings
-  std::vector<cage::iceType>
-      atomTypes; // This vector will have a value for every atom
-  // Number of types
-  int numHC, numDDC, mixedRings, prismaticRings, basalRings;
-
-  // TODO: handle shapeMatching
-  bool doShapeMatching = true;
-  // Qualifier for the RMSD per atom:
-  std::vector<double> rmsdPerAtom;
-  //
-
-  // test
-  // std::cout << "rings"
-  //           << "\n";
-  // for (int i = 0; i < rings.size(); i++) {
-  //   for (int j = 0; j < rings[i].size(); j++) {
-  //     std::cout << rings[i][j] << " ";
-  //   }
-  //   std::cout << "\n";
-  // }
-  // std::cout << "\n";
-
-  if (onlyTetrahedral) {
-    initRingSize = 6;
-  } else {
-    initRingSize = 5;
-  }
-
-  // Init the atom type vector
-  atomTypes.resize(static_cast<std::size_t>(yCloud.nop)); // Has a value for each atom
-  // Init the rmsd per atom (not used yet)
-  rmsdPerAtom.resize(static_cast<std::size_t>(yCloud.nop)); // Has a value for each atom
-
-  // ----------------------------------------------
-  // Init
-  // Get rings of size 5 or 6.
-  for (int ringSize = initRingSize; ringSize <= maxRingSize; ringSize++) {
-    // Clear ringsOneType
-    ring::clearRingList(ringsOneType);
-    // Get rings of the current ring size
-    ringsOneType = ring::getSingleRingSize(rings, ringSize);
-    // Skip for zero rings
-    if (ringsOneType.empty()) {
-      continue;
-    } // skip for no rings of ringSize
-    //
-    // Init the ringType vector
-    ringType.resize(
-        ringsOneType.size()); // Has a value for each ring. init to zero.
-    // ----------------------------------------------
-    if (ringSize == 6) {
-      // Get the cages
-
-      // Find HC rings, saving the ring IDs (starting from 0) to listHC
-      const auto ringIndex = ring::buildRingSearchIndex(ringsOneType, yCloud);
-      listHC = ring::findHC(ringsOneType, ringType, nList, cageList, ringIndex);
-
-      // Find DDC rings, saving the IDs to listDDC
-      listDDC =
-          ring::findDDC(ringsOneType, ringType, listHC, cageList, ringIndex);
-
-      // Find rings which are both DDCs and HCs (mixed)
-      // A dummy value of -10 in the listDDC and listHC vectors for mixed rings
-      listMixed =
-          ring::findMixedRings(ringsOneType, ringType, listDDC, listHC);
-
-      // Get the number of structures (DDCs, HCs, mixed rings, basal rings,
-      // prismatic rings)
-      ring::getStrucNumbers(ringType, cageList, numHC, numDDC, mixedRings,
-                            prismaticRings, basalRings);
-
-      // Write out to a file
-      sout::writeTopoBulkData(path, yCloud.currentFrame, numHC, numDDC,
-                              mixedRings, basalRings, prismaticRings,
-                              firstFrame);
-      // Gets the atom type for every atom, to be used for printing out the ice
-      // types found
-      ring::getAtomTypesTopoBulk(ringsOneType, ringType, atomTypes);
-    }
-    // Finding prismatic blocks
-    else {
-      // Get the prism block classifications
-      prism3::findBulkPrisms(ringsOneType, ringType, nList, yCloud,
-                             rmsdPerAtom);
-      // Gets the atom type for every atom, to be used for printing out the ice
-      // types found
-      ring::getAtomTypesTopoBulk(ringsOneType, ringType, atomTypes);
-    }
-  }
-
-  // Print out the lammps data file with the bonds
-  sout::writeLAMMPSdataTopoBulk(yCloud, nList, atomTypes, path);
-  // To output the bonds between dummy atoms, uncomment the following line
-  // sout::writeLAMMPSdataTopoBulk(yCloud, nList, atomTypes, path, true);
-
-  return 0;
-}
 
 /**
  * @details Builds the inverted atom-to-rings index. Rows stay in ascending
@@ -35682,94 +35524,6 @@ int ring::getStrucNumbers(const std::vector<ring::strucType> &ringType,
  *  been classified as prisms. The indices are with respect to the input rings
  *  vector of vectors.
  */
-int prism3::findBulkPrisms(
-    const std::vector<std::vector<int>> &rings, std::vector<ring::strucType> &ringType,
-    const std::vector<std::vector<int>> &nList,
-    molSys::PointCloud<molSys::Point<double>, double> &yCloud,
-    std::vector<double> &rmsdPerAtom, double heightCutoff) {
-  int totalRingNum = static_cast<int>(rings.size()); // Total number of rings
-  std::vector<int> basal1;         // First basal ring
-  std::vector<int> basal2;         // Second basal ring
-  bool cond1, cond2; // Conditions for rings to be basal (true) or not (false)
-  int ringSize = static_cast<int>(rings[0].size()); // Number of nodes in each ring
-  // Matrix for the reference ring for a given ringSize.
-  Eigen::MatrixXd refPointSet(ringSize, 3);
-
-  int axialDim = 2; // Default=z
-  refPointSet = pntToPnt::getPointSetRefRing(ringSize, axialDim);
-  //
-
-  // Two loops through all the rings are required to find pairs of basal rings
-  for (int iring = 0; iring < totalRingNum - 1; iring++) {
-    cond1 = false;
-    cond2 = false;
-    basal1 = rings[static_cast<std::size_t>(iring)]; // Assign iring to basal1
-    // Loop through the other rings to get a pair
-    for (int jring = iring + 1; jring < totalRingNum; jring++) {
-      basal2 = rings[static_cast<std::size_t>(jring)]; // Assign jring to basal2
-      // ------------
-      // Put extra check for axial basal rings if shapeMatching is being done
-      // ------------
-      // Step one: Check to see if basal1 and basal2 have common
-      // elements or not. If they don't, then they cannot be basal rings
-      cond1 = ring::hasCommonElements(basal1, basal2);
-      if (cond1) {
-        continue;
-      }
-
-      // ------------
-      bool smallDist =
-          prism3::basalRingsSeparation(yCloud, basal1, basal2, heightCutoff);
-      if (!smallDist) {
-        continue;
-      } // the basal rings are too far apart
-
-      // Otherwise
-      // Do shape matching here
-      bool isPrism = match::matchUntetheredPrism(yCloud, nList, refPointSet,
-                                                 basal1, basal2, rmsdPerAtom);
-
-      // Success! The rings are basal rings of a prism!
-      if (isPrism) {
-        //
-        // Update iring
-        if (ringType[static_cast<std::size_t>(iring)] == ring::strucType::unclassified) {
-          ringType[static_cast<std::size_t>(iring)] = ring::strucType::Prism;
-        }
-        // Update jring
-        if (ringType[static_cast<std::size_t>(jring)] == ring::strucType::unclassified) {
-          ringType[static_cast<std::size_t>(jring)] = ring::strucType::Prism;
-        }
-      } // end of reduced criteria
-      // Strict criteria
-      else {
-        cond2 = prism3::basalPrismConditions(nList, basal1, basal2);
-        // If the condition is false then the strict criterion has not been met
-        if (!cond2) {
-          continue;
-        }
-        // Update iring
-        if (ringType[static_cast<std::size_t>(iring)] == ring::strucType::unclassified) {
-          ringType[static_cast<std::size_t>(iring)] = ring::strucType::Prism;
-        }
-        // Update jring
-        if (ringType[static_cast<std::size_t>(jring)] == ring::strucType::unclassified) {
-          ringType[static_cast<std::size_t>(jring)] = ring::strucType::Prism;
-        }
-        //
-        // Shape-matching to get the RMSD (if shape-matching is desired)
-
-        // bool isKnownPrism = match::matchPrism(
-        //     yCloud, nList, refPointSet, basal1, basal2, rmsdPerAtom, true);
-
-        // -----------
-      } // end of strict criteria
-
-    } // end of loop through rest of the rings to get the second basal ring
-  }   // end of loop through all rings for first basal ring
-
-  return 0;
-}
 
 /**
  * @details A function that checks to see if two basal rings are basal rings of

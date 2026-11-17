@@ -107,6 +107,18 @@ class Amalgamator:
                 text, count = re.subn(pattern, "", text, count=1, flags=re.DOTALL)
                 if count != 1:
                     raise RuntimeError("could not remove an unused optional shape helper")
+        if path.name == "topo_bulk.cpp":
+            for name in (
+                "ring::bulkPolygonRingAnalysis",
+                "ring::topoBulkAnalysis",
+                "prism3::findBulkPrisms",
+            ):
+                match = re.search(
+                    rf"^int {re.escape(name)}\(.*?\n\}}\n", text, re.DOTALL | re.MULTILINE
+                )
+                if match is None or match.group(0).count("{") != match.group(0).count("}"):
+                    raise RuntimeError(f"could not remove the file-writing {name}")
+                text = text[: match.start()] + text[match.end() :]
         if path.name == "topo_neighbour_key.cpp":
             text, count = re.subn(
                 r"struct LocalGraph \{.*?\n\};\n",
@@ -170,6 +182,24 @@ class Amalgamator:
         return path.name
 
 
+# C library declarations made inside the hidden-visibility region would
+# themselves become hidden and could never resolve against the C library, so
+# the system headers the vendored sources use are included first as well.
+SYSTEM_HEADERS = (
+    "#include <stdlib.h>\n"
+    "#if defined(__linux__)\n"
+    "#include <sched.h>\n"
+    "#endif\n"
+    "#if defined(__x86_64__) && defined(__linux__)\n"
+    "#include <sys/syscall.h>\n"
+    "#include <unistd.h>\n"
+    "#endif\n"
+    "#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))\n"
+    "#include <cpuid.h>\n"
+    "#include <immintrin.h>\n"
+    "#endif\n"
+)
+
 COMPAT_SHIMS = (
     "\n"
     "namespace dseams_compat {\n"
@@ -213,6 +243,7 @@ def preamble(standard_headers: list[str]) -> str:
         "#define EIGEN_MPL2_ONLY\n"
         "#endif\n"
         + includes
+        + SYSTEM_HEADERS
         + COMPAT_SHIMS
         + "#if defined(__GNUC__)\n"
         "#pragma GCC visibility push(hidden)\n"
