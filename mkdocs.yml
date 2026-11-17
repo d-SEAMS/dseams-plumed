@@ -1,0 +1,48 @@
+site_name: dseams-plumed
+site_description: The d-SEAMS topological ice score as a PLUMED action
+site_url: https://d-seams.github.io/dseams-plumed/
+repo_url: https://github.com/d-SEAMS/dseams-plumed
+repo_name: d-SEAMS/dseams-plumed
+edit_uri: edit/main/docs/
+exclude_docs: |
+  requirements.txt
+copyright: MIT licensed. Cite 10.1021/acs.jcim.0c00031.
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      toggle:
+        icon: material/brightness-4
+        name: Light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Keyword reference: keywords.md
+  - Ions: ions.md
+  - Topology keys: topology.md
+  - Inside LAMMPS: lammps.md
+  - Driver tests: tests.md
+  - Citation: citation.md
