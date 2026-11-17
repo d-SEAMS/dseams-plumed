@@ -1,45 +1,48 @@
 # d-SEAMS cage counts as PLUMED collective variables
 
-PLUMED 2.9 or later. The inputs were checked with PLUMED 2.9, PLUMED
-2.10, and PLUMED master. The module loads with `LOAD FILE=` and needs
-the d-SEAMS engine at the seams-core tag `v2.14.0`.
+This archive is self-contained source for PLUMED 2.10 or later.
+`LOAD FILE=dseams_plumed.cpp` asks PLUMED to compile the action on first
+use. The generated source contains the required seams-core v2.14.0 code.
+The `Eigen` directory contains the Eigen 3.4.0 headers the source includes,
+and `LICENSE-Eigen` contains the matching `COPYING` files. The source defines
+`EIGEN_MPL2_ONLY`. With that macro set, Eigen refuses any header under the
+Lesser General Public License. No d-SEAMS library is required.
 
-This folder is the PLUMED-NEST egg for `DSEAMS_CAGES`. `plumed.dat` is
-the input. `nest.yml` is the submission metadata and is kept beside the
-archive, not inside it.
+`plumed.dat` uses only the core `UNITS`, `LOAD`, and `PRINT` directives.
+`DSEAMS_CAGES` is defined by the bundled source. It does not require the
+optional symmetry-functions, environment-similarity, or adjacency-matrix
+modules.
 
-- `plumed.dat`: three actions, one each for ice nucleation in water, a
-  growing front in an NaCl brine, and the filled cages of a methane
-  hydrate. Every component is a count without derivatives, for `PRINT`,
-  `COMMITTOR` and analysis rather than biasing.
-- The module is `libdseams_plumed.so`, built from
-  https://github.com/d-SEAMS/dseams-plumed at tag `v0.4.0`
-  (`pixi run build`, or `meson setup build && meson compile -C build`).
-  The meson wrap fetches seams-core tag `v2.14.0`. An installed engine
-  is accepted when `pkg-config seams-core` reports 2.14.0 or newer.
-  `LOAD FILE=./libdseams_plumed.so` loads the copy in the working
-  directory. A bare filename is not on the dynamic loader's search path.
-- Authors: Rohit Goswami, Amrita Goswami, and Jayant K. Singh.
-  Contributor: Rohit Goswami. Cite
-  10.1021/acs.jcim.0c00031. The d-SEAMS 2.0 manuscript does not yet have
-  a journal DOI.
-- The counts are the ones the d-SEAMS 2 paper measures against CHILL+,
-  template matching and Steinhardt order parameters on the same
-  frames; the reproducibility package runs these inputs through LAMMPS
-  on a supercooled mW liquid with an ice seed and on a TIP4P/2005
-  ice-brine interface.
+PLUMED compiles the bundled source with `plumed mklib`, which must use
+C++17. PLUMED 2.10 configures that language level. A PLUMED 2.9 build
+compiles the source only if it was configured with C++17; the default
+2.9 configuration uses C++11 and fails.
 
-Atom ranges in `plumed.dat` are for the example systems of the paper
-(4096 mW molecules; 3000 waters and 60 ions; 2944 waters and 256
-methanes) and want editing for another system: `ATOMS` is one oxygen
-per molecule, `IONS` one atom per ion, `GUESTS` one atom per guest.
+Once PLUMED compiles the source, the bundled `frame.xyz` exercises it: a
+cubic-diamond ice lattice, a second lattice with two substitutional ions,
+and a periodic cubic cage lattice with 64 guests. The three
+`DSEAMS_CAGES` actions write `ICE`, `BRINE`, and `HYDRATE`.
 
-NEST checks syntax with:
+Run the complete example from this directory:
 
+```sh
+plumed driver --plumed plumed.dat --ixyz frame.xyz --length-units A
 ```
+
+Compare the data rows with `reference/ICE`, `reference/BRINE`, and
+`reference/HYDRATE`. PLUMED may also leave a versioned shared object
+beside the source; it is a local compilation cache and is not needed in
+the archive.
+
+The PLUMED-NEST syntax check is:
+
+```sh
 plumed driver --natoms 100000 --parse-only --kt 2.49 --plumed plumed.dat
 ```
 
-That command dlopens `libdseams_plumed.so` from the working directory.
-The archive does not vendor the library: it links the seams-core
-engine, which the NEST runners do not have installed.
+`ATOMS` is one oxygen per water, `IONS` is one atom per ion, and
+`GUESTS` is one atom per guest. Edit the ranges and parameters in
+`plumed.dat` for another system.
+
+Authors: Rohit Goswami, Amrita Goswami, and Jayant K. Singh. Cite
+10.1021/acs.jcim.0c00031.

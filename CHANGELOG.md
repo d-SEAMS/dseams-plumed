@@ -10,6 +10,13 @@ by [towncrier](https://towncrier.readthedocs.io/).
 
 <!-- towncrier release notes start -->
 
+## [0.4.1] - 2026-11-17
+
+### Fixed
+
+- The PLUMED-NEST archive now contains everything needed to run. Its source compiles with `plumed mklib` under gcc and libstdc++ and under clang and libc++. It keeps the upstream identifiers as they are. The archive bundles only the Eigen headers the source includes, together with the licences they require. It needs PLUMED 2.10 or later.
+
+
 ## [0.4.0] - 2026-11-17
 
 ### Added

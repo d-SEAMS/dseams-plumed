@@ -7,6 +7,9 @@ on:
 
 env:
   SEAMS_CORE_TAG: v2.14.0
+  EIGEN_SHA256: b4c198460eba6f28d34894e3a5710998818515104d6e74e5cc331ce31e46e626
+  PLUMED_TAG: v2.10.2
+  PLUMED_COMMIT: 90dec6d6ebf97ad5f2580e50e563b70c1728c4e6
 
 jobs:
   build-test:
@@ -15,6 +18,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Engine pin is the seams-core tag
         run: python3 tests/check_engine_pin.py
+      - name: Version copies agree with meson.build
+        run: python3 scripts/project_version.py --check
       - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
         with:
           environments: default
@@ -23,3 +28,59 @@ jobs:
       - run: pixi run setup
       - run: pixi run build
       - run: pixi run test
+
+  nest-archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/test-env
+        with:
+          toolchain: gcc
+      - name: Fetch pinned source inputs
+        run: |
+          git clone --depth 1 --branch "$SEAMS_CORE_TAG" \
+            https://github.com/d-SEAMS/seams-core.git .sources/seams-core
+          curl -fsSL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2 \
+            -o .sources/eigen.tar.bz2
+          echo "${EIGEN_SHA256}  .sources/eigen.tar.bz2" | sha256sum -c -
+          tar -xjf .sources/eigen.tar.bz2 -C .sources
+      - name: Build and test the NEST archive with gcc and PLUMED 2.10.2
+        run: |
+          "$PWD/.test-env/bin/python" scripts/generate_nest_source.py \
+            --seams-root .sources/seams-core --output nest/dseams_plumed.generated.cpp
+          cmp nest/dseams_plumed.cpp nest/dseams_plumed.generated.cpp
+          rm nest/dseams_plumed.generated.cpp
+          "$PWD/.test-env/bin/python" scripts/build_nest_zip.py \
+            --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
+          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          python3 scripts/project_version.py --check --archive "$ARCHIVE"
+          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p "$PWD/.test-env" \
+            python tests/nest_zip_check.py plumed "$ARCHIVE"
+
+  nest-archive-libcxx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/test-env
+        with:
+          toolchain: clang
+      - name: Fetch pinned source inputs
+        run: |
+          git clone --depth 1 --branch "$SEAMS_CORE_TAG" \
+            https://github.com/d-SEAMS/seams-core.git .sources/seams-core
+          curl -fsSL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2 \
+            -o .sources/eigen.tar.bz2
+          echo "${EIGEN_SHA256}  .sources/eigen.tar.bz2" | sha256sum -c -
+          tar -xjf .sources/eigen.tar.bz2 -C .sources
+          git clone --depth 1 --branch "$PLUMED_TAG" \
+            https://github.com/plumed/plumed2.git .sources/plumed2
+          test "$(git -C .sources/plumed2 rev-parse HEAD)" = "$PLUMED_COMMIT"
+      - name: Build PLUMED with clang and libc++
+        run: tests/build_plumed_libcxx.sh "$PWD/.test-env" .sources/plumed2 "$PWD/.plumed-libcxx"
+      - name: Build and test the NEST archive with clang and libc++
+        run: |
+          PATH="$PWD/.test-env/bin:$PWD/.plumed-libcxx/bin:$PATH"
+          python3 scripts/build_nest_zip.py \
+            --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
+          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          python3 tests/nest_zip_check.py plumed "$ARCHIVE"

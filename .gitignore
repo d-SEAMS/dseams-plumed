@@ -1,4 +1,5 @@
 build/
+dist/
 .pixi/
 subprojects/seams-core/
 subprojects/packagecache/

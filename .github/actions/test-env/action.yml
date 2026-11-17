@@ -1,0 +1,41 @@
+name: Pinned test environment
+description: >
+  Install a pinned micromamba and create .test-env from conda-forge with
+  pinned compilers. The gcc toolchain includes stock PLUMED 2.10.2. The
+  clang toolchain includes clang and libc++ for building PLUMED from source.
+inputs:
+  toolchain:
+    description: gcc or clang
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Install micromamba
+      shell: bash
+      run: |
+        micromamba_version="2.10.0-0"
+        micromamba_sha256="701f39c06f8e6a670a0e186c8479b9e5c0502a2f0cda6cef65d83bdd2875e8bd"
+        mkdir -p .tools
+        curl -fsSL -o .tools/micromamba \
+          "https://github.com/mamba-org/micromamba-releases/releases/download/${micromamba_version}/micromamba-linux-64"
+        echo "${micromamba_sha256}  .tools/micromamba" | sha256sum -c -
+        chmod +x .tools/micromamba
+    - name: Create the environment
+      shell: bash
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+      run: |
+        case "$TOOLCHAIN" in
+          gcc)
+            packages=(plumed=2.10.2 cxx-compiler=2.0.0 gxx=15.3.0 zlib=1.3.2 python=3.12.16)
+            ;;
+          clang)
+            packages=(clangxx=23.1.5 libcxx=23.1.5 libcxx-devel=23.1.5 llvm-openmp=23.1.5 make=4.4.1 zlib=1.3.2 python=3.12.16)
+            ;;
+          *)
+            echo "unknown toolchain $TOOLCHAIN" >&2
+            exit 1
+            ;;
+        esac
+        MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba create -y -p "$PWD/.test-env" \
+          -c conda-forge --override-channels "${packages[@]}"

@@ -1,4 +1,4 @@
-url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v0.4.0/dseams-plumed-v0.4.0-nest.zip
+url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v0.4.1/dseams-plumed-v0.4.1-nest.zip
 pname: d-SEAMS cage counts
 title: d-SEAMS cage counts as PLUMED collective variables
 category: methods
@@ -10,7 +10,7 @@ authors:
   - Amrita Goswami
   - Jayant K. Singh
 doi: 10.1021/acs.jcim.0c00031
-plumed_version: "2.9"
+plumed_version: "2.10"
 history:
   2026-11-17: Initial submission of DSEAMS_CAGES built on seams-core v2.14.0.
 plumed_input:
@@ -19,15 +19,11 @@ instructions: >
   DSEAMS_CAGES is the d-SEAMS topological ice score as a PLUMED action
   with no derivatives. The three actions in plumed.dat score ice
   nucleation, a brine front, and the filled cages of a methane hydrate.
-  PLUMED 2.9 or later. The module was checked with PLUMED 2.9, 2.10,
-  and master. Build libdseams_plumed.so from
-  https://github.com/d-SEAMS/dseams-plumed at tag v0.4.0 against the
-  seams-core tag v2.14.0 (meson wrap, or pkg-config seams-core >= 2.14.0).
-  LOAD FILE=./libdseams_plumed.so loads that shared library from the
-  working directory. ATOMS is one oxygen
-  per water, IONS one atom per ion, GUESTS one atom per guest. The atom
-  ranges match the example systems (4096 mW molecules; 3000 waters and
-  60 ions; 2944 waters and 256 methanes). The methods paper is
-  10.1021/acs.jcim.0c00031. The d-SEAMS 2.0 manuscript does not yet have
-  a journal DOI.
-md5: 4b55c04163bcfc24ded306405f0c6c03
+  PLUMED 2.10 or later with a C++17 compiler. LOAD FILE=dseams_plumed.cpp
+  compiles the generated action and the required seams-core v2.14.0
+  implementation from the archive; no installed d-SEAMS library is
+  required. The included frame.xyz runs all three actions and has pinned
+  ICE, BRINE, and HYDRATE reference outputs. ATOMS is one oxygen per
+  water, IONS one atom per ion, and GUESTS one atom per guest. The
+  methods paper is 10.1021/acs.jcim.0c00031.
+md5: f853d7b088b0d934aa73bd64cc7963ad
