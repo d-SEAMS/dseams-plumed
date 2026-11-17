@@ -12,22 +12,32 @@ copyright: MIT licensed. Cite 10.1021/acs.jcim.0c00031.
 
 theme:
   name: material
+  custom_dir: overrides
+  favicon: assets/favicon.ico
+  font: false
   features:
     - content.code.copy
     - navigation.sections
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: teal
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: teal
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Light mode
+
+extra_css:
+  - stylesheets/dseams-tokens.css
+  - stylesheets/dseams-family.css
+  - stylesheets/dseams-mkdocs.css
 
 markdown_extensions:
   - admonition
