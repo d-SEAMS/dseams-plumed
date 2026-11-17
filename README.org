@@ -23,7 +23,7 @@ COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_U
 
 * Documentation
 
-The site at https://d-seams.github.io/dseams-plumed/ carries the
+The site at https://plumed.dseams.info/ carries the
 install steps and the keyword reference.
 
 - Book: [[https://docs.dseams.info/howto/engine-plumed.html][PLUMED how-to]]

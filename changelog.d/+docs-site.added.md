@@ -1,1 +1,1 @@
-Documentation site at https://d-seams.github.io/dseams-plumed/ with install steps and a keyword reference.
+Documentation site at https://plumed.dseams.info/ with install steps and a keyword reference.
