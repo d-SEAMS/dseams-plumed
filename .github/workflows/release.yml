@@ -28,11 +28,11 @@ jobs:
           tar -xjf .sources/eigen.tar.bz2 -C .sources
       - name: Build and verify the NEST archive
         run: |
-          .test-env/bin/python scripts/build_nest_zip.py \
+          "$PWD/.test-env/bin/python" scripts/build_nest_zip.py \
             --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
           ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
           python3 scripts/project_version.py --check --tag "$GITHUB_REF_NAME" --archive "$ARCHIVE"
-          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
+          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p "$PWD/.test-env" \
             python tests/nest_zip_check.py plumed "$ARCHIVE"
       - name: Create a draft release and attach the verified archive
         env:

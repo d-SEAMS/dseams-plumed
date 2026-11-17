@@ -46,15 +46,15 @@ jobs:
           tar -xjf .sources/eigen.tar.bz2 -C .sources
       - name: Build and test the NEST archive with gcc and PLUMED 2.10.2
         run: |
-          .test-env/bin/python scripts/generate_nest_source.py \
+          "$PWD/.test-env/bin/python" scripts/generate_nest_source.py \
             --seams-root .sources/seams-core --output nest/dseams_plumed.generated.cpp
           cmp nest/dseams_plumed.cpp nest/dseams_plumed.generated.cpp
           rm nest/dseams_plumed.generated.cpp
-          .test-env/bin/python scripts/build_nest_zip.py \
+          "$PWD/.test-env/bin/python" scripts/build_nest_zip.py \
             --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
           ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
           python3 scripts/project_version.py --check --archive "$ARCHIVE"
-          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p .test-env \
+          MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p "$PWD/.test-env" \
             python tests/nest_zip_check.py plumed "$ARCHIVE"
 
   nest-archive-libcxx:
@@ -76,7 +76,7 @@ jobs:
             https://github.com/plumed/plumed2.git .sources/plumed2
           test "$(git -C .sources/plumed2 rev-parse HEAD)" = "$PLUMED_COMMIT"
       - name: Build PLUMED with clang and libc++
-        run: tests/build_plumed_libcxx.sh .test-env .sources/plumed2 "$PWD/.plumed-libcxx"
+        run: tests/build_plumed_libcxx.sh "$PWD/.test-env" .sources/plumed2 "$PWD/.plumed-libcxx"
       - name: Build and test the NEST archive with clang and libc++
         run: |
           PATH="$PWD/.test-env/bin:$PWD/.plumed-libcxx/bin:$PATH"

@@ -37,5 +37,5 @@ runs:
             exit 1
             ;;
         esac
-        MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba create -y -p .test-env \
+        MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba create -y -p "$PWD/.test-env" \
           -c conda-forge --override-channels "${packages[@]}"
