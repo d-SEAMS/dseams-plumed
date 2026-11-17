@@ -15,7 +15,7 @@ inside the engine use the unit A. =LENGTH_SCALE= converts from the
 PLUMED length unit (10 for the default nm, 1 after =UNITS LENGTH=A=).
 
 #+begin_src plumed
-LOAD FILE=libdseams_plumed.so
+LOAD FILE=./libdseams_plumed.so
 ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 COMPLETE
 PRINT ARG=ice.nice,ice.nmax,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
@@ -29,6 +29,11 @@ symbols when =LOAD= dlopens the file, so the module does not link
 against libplumed. An installed =seams-core= (=pkg-config seams-core=)
 supplies the engine; the wrap is the fallback.
 
+The wrap pins the seams-core tag =v2.14.0=. An installed engine is
+accepted when =pkg-config seams-core= reports 2.14.0 or newer. The
+setup passes =-Dseams-core:with_tests=false= so =meson test= runs this
+module's driver tests. The engine's own suite stays in seams-core.
+
 With pixi (plumed, compilers, meson):
 
 #+begin_src bash
@@ -40,13 +45,13 @@ pixi run test
 Without pixi, put an installed =plumed= on =PATH= and run:
 
 #+begin_src bash
-meson setup build --buildtype=release
+meson setup build --buildtype=release -Dseams-core:with_tests=false
 meson compile -C build
 meson install -C build   # libdseams_plumed.so into libdir
 #+end_src
 
-=LOAD FILE== takes that path, or a relative path to
-=build/libdseams_plumed.so= from the working directory of the run.
+=LOAD FILE== takes that path. A bare filename is not searched in the
+working directory; use =./libdseams_plumed.so= or an absolute path.
 
 * Keywords
 
@@ -69,6 +74,11 @@ off the graph.
 =ION_CUTOFF= (default 3.5) sets the radius in A of an ion's first water shell.
 
 =HOPS= (default 3) sets the bonds from the centre in each local topology key.
+
+=SIGNATURE= (optional) is a ring-size census (=4:6,6:8=) or a named
+table: =sodalite=, =alpha=, =512=, =51262=, =51264=, =51268=, =sh=,
+=sH=, =hc=, =ddc=. =ncages= counts the closed polyhedra. =hc= and
+=ddc= keep the seeded ice finders.
 
 =GUESTS= lists one atom per guest molecule (methane carbon, THF oxygen,
 an ion) and needs =SIGNATURE=: each guest goes to the nearest cage
@@ -122,7 +132,7 @@ three ion components report brine rejection at a growing front in an
 electrolyte, for example TIP4P/2005 with the Madrid 2019 ions.
 
 #+begin_src plumed
-LOAD FILE=libdseams_plumed.so
+LOAD FILE=./libdseams_plumed.so
 brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 COMPLETE
 PRINT ARG=brine.nice,brine.nmax,brine.nionice,brine.nionfront,brine.nionliq STRIDE=500 FILE=BRINE
 #+end_src
@@ -192,7 +202,10 @@ fragment =+slug.added.md= (or =changed=, =deprecated=, =removed=,
 
 * Citation
 
-Cite the methods paper if you use this module.
+Cite the methods paper if you use this module. [[file:CITATION.cff][CITATION.cff]]
+carries this release.
+
+
 
 Goswami, R.; Goswami, A.; Singh, J. K. d-SEAMS: Deferred Structural
 Elucidation Analysis for Molecular Simulations. /J. Chem. Inf. Model./
@@ -215,5 +228,6 @@ Elucidation Analysis for Molecular Simulations. /J. Chem. Inf. Model./
 
 * Continuous integration
 
-Every push to =main= builds the module against the pinned engine in the
-pixi environment and runs the driver tests (=pixi run test=).
+Every push to =main= checks that the wrap revision is the seams-core
+tag =v2.14.0=, builds the module in the pixi environment, and runs the
+driver tests (=pixi run test=).

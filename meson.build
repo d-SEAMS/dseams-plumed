@@ -1,12 +1,14 @@
 project('dseams-plumed', 'cpp',
-  version: '0.3.1',
+  version: '0.4.0',
   license: 'MIT',
   default_options: ['cpp_std=c++20', 'buildtype=release', 'warning_level=2'])
 
-# The engine: an installed seams-core (pkg-config) or the wrap
-yds_dep = dependency('seams-core', required: false)
+# The engine: an installed seams-core (pkg-config seams-core) at 2.14.0 or
+# newer, or the wrap. The wrap revision is the tag v2.14.0.
+yds_dep = dependency('seams-core', version: '>=2.14.0', required: false)
 if not yds_dep.found()
-  yds_dep = dependency('seams-core', fallback: ['seams-core', 'yds_dep'])
+  yds_dep = dependency('seams-core', version: '>=2.14.0',
+    fallback: ['seams-core', 'yds_dep'])
 endif
 
 # PLUMED headers come from the installed plumed; the kernel resolves the
@@ -46,8 +48,13 @@ if pymod.found()
     args: [meson.project_source_root() / 'tests' / 'guest_check.py',
            plumed.full_path(), mod.full_path()],
     timeout: 600)
-  # the library check needs the engine CLI on PATH to write the keys
+  # the library check needs the engine CLI to write the keys. An
+  # installed seams is used when it is on PATH; otherwise the CLI the
+  # wrap just built.
   seams_cli = find_program('seams', required: false)
+  if not seams_cli.found()
+    seams_cli = subproject('seams-core').get_variable('seams_exe')
+  endif
   if seams_cli.found()
     test('driver_library',
       pymod,

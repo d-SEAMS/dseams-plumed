@@ -4,6 +4,7 @@
 ** SPDX-License-Identifier: MIT
 */
 #include "colvar/Colvar.h"
+#include "config/version.h"
 #include "core/ActionRegister.h"
 #include "tools/Pbc.h"
 
@@ -46,7 +47,7 @@ ions, for instance).
 \par Examples
 
 \plumedfile
-LOAD FILE=libdseams_plumed.so
+LOAD FILE=./libdseams_plumed.so
 ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 COMPLETE
 PRINT ARG=ice.nice,ice.nmax,ice.nic,ice.nih,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
@@ -87,6 +88,18 @@ public:
 
 PLUMED_REGISTER_ACTION(DseamsCages, "DSEAMS_CAGES")
 
+namespace {
+// Master (2.11) deprecates the three-argument form and asks for a value
+// type. 2.9 and 2.10 only declare the three-argument form.
+void addCount(Keywords &keys, const char *name, const char *descr) {
+#if PLUMED_VERSION_MAJOR > 2 || (PLUMED_VERSION_MAJOR == 2 && PLUMED_VERSION_MINOR >= 11)
+  keys.addOutputComponent(name, "default", "scalar", descr);
+#else
+  keys.addOutputComponent(name, "default", descr);
+#endif
+}
+} // namespace
+
 void DseamsCages::registerKeywords(Keywords &keys) {
   Colvar::registerKeywords(keys);
   keys.add("atoms", "ATOMS", "the oxygen atoms of the water molecules");
@@ -102,19 +115,19 @@ void DseamsCages::registerKeywords(Keywords &keys) {
   keys.add("atoms", "IONS", "ions read against the water assignment; not part of the graph");
   keys.add("compulsory", "ION_CUTOFF", "3.5",
            "radius in Angstrom of an ion's first water shell");
-  keys.addOutputComponent("nice", "default", "molecules in a hexagonal or double-diamond cage");
-  keys.addOutputComponent("nmax", "default", "largest connected cluster of cage molecules");
-  keys.addOutputComponent("nclus", "default", "number of connected cage clusters");
-  keys.addOutputComponent("nic", "default", "molecules in a double-diamond cage only");
-  keys.addOutputComponent("nih", "default", "molecules in a hexagonal cage only");
-  keys.addOutputComponent("nmixed", "default", "molecules in both cage types");
-  keys.addOutputComponent("chillice", "default", "CHILL+ cubic plus hexagonal molecules");
-  keys.addOutputComponent("chillmax", "default", "largest CHILL+ bulk-ice cluster");
-  keys.addOutputComponent("chillinterfacial", "default", "CHILL+ interfacial molecules");
-  keys.addOutputComponent("sixrings", "default", "primitive six-membered rings on the union graph");
-  keys.addOutputComponent("nionice", "default", "ions whose first water shell is all cage molecules");
-  keys.addOutputComponent("nionfront", "default", "ions with a mixed first shell");
-  keys.addOutputComponent("nionliq", "default", "ions with no cage molecule in the first shell");
+  addCount(keys, "nice", "molecules in a hexagonal or double-diamond cage");
+  addCount(keys, "nmax", "largest connected cluster of cage molecules");
+  addCount(keys, "nclus", "number of connected cage clusters");
+  addCount(keys, "nic", "molecules in a double-diamond cage only");
+  addCount(keys, "nih", "molecules in a hexagonal cage only");
+  addCount(keys, "nmixed", "molecules in both cage types");
+  addCount(keys, "chillice", "CHILL+ cubic plus hexagonal molecules");
+  addCount(keys, "chillmax", "largest CHILL+ bulk-ice cluster");
+  addCount(keys, "chillinterfacial", "CHILL+ interfacial molecules");
+  addCount(keys, "sixrings", "primitive six-membered rings on the union graph");
+  addCount(keys, "nionice", "ions whose first water shell is all cage molecules");
+  addCount(keys, "nionfront", "ions with a mixed first shell");
+  addCount(keys, "nionliq", "ions with no cage molecule in the first shell");
   keys.add("optional", "LIBRARY",
            "a topology key library (seams fingerprint --emit-library) whose labels name "
            "molecules by their rooted neighbourhood on the mutual graph; several files, "
@@ -122,19 +135,20 @@ void DseamsCages::registerKeywords(Keywords &keys) {
            "deepest that knows it");
   keys.add("compulsory", "HOPS", "3", "bonds from the centre in each local topology key");
   keys.add("optional", "SIGNATURE",
-           "ring-size census (4:6,6:8) or named table (sodalite|alpha|512|51262|hc|ddc); "
+           "ring-size census (4:6,6:8) or named table "
+           "(sodalite|alpha|512|51262|51264|51268|sh|sH|hc|ddc); "
            "ncages is the number of closed polyhedra");
-  keys.addOutputComponent("nclasses", "default", "distinct local topology classes on the mutual graph");
-  keys.addOutputComponent("nnamed", "default", "molecules whose local key the LIBRARY names");
-  keys.addOutputComponent("ncages", "default", "closed polyhedra matching SIGNATURE; 0 when SIGNATURE is unset");
+  addCount(keys, "nclasses", "distinct local topology classes on the mutual graph");
+  addCount(keys, "nnamed", "molecules whose local key the LIBRARY names");
+  addCount(keys, "ncages", "closed polyhedra matching SIGNATURE; 0 when SIGNATURE is unset");
   keys.add("atoms", "GUESTS",
            "one atom per guest molecule (methane carbon, THF oxygen, an ion) placed in the "
            "SIGNATURE cages by the periodic centroid of each cage's vertices");
   keys.add("compulsory", "GUEST_RADIUS", "4.0",
            "a guest belongs to the nearest cage centre within this distance (A)");
-  keys.addOutputComponent("noccupied", "default", "SIGNATURE cages holding at least one guest");
-  keys.addOutputComponent("nmultiple", "default", "SIGNATURE cages holding more than one guest");
-  keys.addOutputComponent("nfreeguest", "default", "guests in no SIGNATURE cage");
+  addCount(keys, "noccupied", "SIGNATURE cages holding at least one guest");
+  addCount(keys, "nmultiple", "SIGNATURE cages holding more than one guest");
+  addCount(keys, "nfreeguest", "guests in no SIGNATURE cage");
 }
 
 DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
@@ -195,8 +209,8 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
       if (libraries_[i].hops == libraries_[i - 1].hops) {
         error("two LIBRARY files share a hop count");
       }
-      if (libraries_[i].coloured != library_.coloured) {
-        error("LIBRARY files differ in colouring");
+      if (libraries_[i].colored != library_.colored) {
+        error("LIBRARY files differ in coloring");
       }
     }
   }

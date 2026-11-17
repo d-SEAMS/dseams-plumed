@@ -10,6 +10,32 @@ by [towncrier](https://towncrier.readthedocs.io/).
 
 <!-- towncrier release notes start -->
 
+## [0.4.0] - 2026-11-17
+
+### Added
+
+- SIGNATURE accepts the named tables seams-core added after the v2.9.2
+  engine in v0.3.1: 51264, 51268, sh, and sH, beside sodalite, alpha,
+  512, 51262, hc, and ddc.
+
+### Changed
+
+- Engine wrap pins the seams-core tag v2.14.0. v0.3.1 wrapped engine
+  v2.9.2. The tag includes the unreleased pins since then: v2.10.0 (F4,
+  Zeron, TUM offload, and the water-type mask), ice XXI fingerprints,
+  the audit fixes for undefined behavior and the IRA residual, the j815
+  leftover batch, CHILL+ device-safe target loops, and the RDF
+  minimum-image correction. The module reads the library field colored.
+
+### Fixed
+
+- CHILL+ counts follow the seams-core correction on a cutoff list. The
+  old count used bonds after the neighbour row had already been cut to
+  four. A crystal row needs four neighbours inside the cutoff.
+- LOAD examples pass `./libdseams_plumed.so`. The dynamic loader does
+  not search the working directory for a bare filename.
+
+
 ## [0.3.0] - 2026-09-02
 
 ### Added

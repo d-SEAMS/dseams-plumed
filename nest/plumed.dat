@@ -1,10 +1,11 @@
+# PLUMED 2.9 or later. Engine: seams-core tag v2.14.0.
 # d-SEAMS cage counts on the fly: the seeded topological ice score
 # (hexagonal and double-diamond cages), the largest ice cluster, the
 # CHILL+ counts, the ion classes of a brine, and the filled cages of a
 # hydrate, all as PLUMED components without derivatives (PRINT,
 # COMMITTOR, analysis).
 UNITS LENGTH=A
-LOAD FILE=libdseams_plumed.so
+LOAD FILE=./libdseams_plumed.so
 
 # mW or TIP4P/2005 water: one oxygen per molecule in ATOMS
 ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 CANDIDATE=5.5 K=4 COMPLETE

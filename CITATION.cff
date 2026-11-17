@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "dseams-plumed: the d-SEAMS topological ice score as a PLUMED action"
+type: software
+version: "0.4.0"
+date-released: "2026-11-17"
+license: MIT
+repository-code: "https://github.com/d-SEAMS/dseams-plumed"
+url: "https://github.com/d-SEAMS/dseams-plumed"
+doi: "10.1021/acs.jcim.0c00031"
+authors:
+  - family-names: Goswami
+    given-names: Rohit
+    orcid: "https://orcid.org/0000-0002-2393-8056"
+  - family-names: Goswami
+    given-names: Amrita
+    orcid: "https://orcid.org/0000-0001-8706-2383"
+  - family-names: Singh
+    given-names: Jayant K.
+    orcid: "https://orcid.org/0000-0001-8056-2115"
+preferred-citation:
+  type: article
+  title: "d-SEAMS: Deferred Structural Elucidation Analysis for Molecular Simulations"
+  authors:
+    - family-names: Goswami
+      given-names: Rohit
+      orcid: "https://orcid.org/0000-0002-2393-8056"
+    - family-names: Goswami
+      given-names: Amrita
+      orcid: "https://orcid.org/0000-0001-8706-2383"
+    - family-names: Singh
+      given-names: Jayant K.
+      orcid: "https://orcid.org/0000-0001-8056-2115"
+  doi: "10.1021/acs.jcim.0c00031"
+  journal: "Journal of Chemical Information and Modeling"
+  volume: 60
+  issue: 4
+  start: 2169
+  end: 2177
+  month: 3
+  year: 2020
