@@ -20,13 +20,14 @@ PRINT ARG=ice.nice,ice.nmax,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
 ```
 
-[Install](install.md) builds `libdseams_plumed.so`. The
-[keyword reference](keywords.md) lists every keyword and component the
-action registers.
+[Install](install.md) builds `libdseams_plumed.so`, or use the
+PLUMED-NEST egg [plumID:26.018](https://www.plumed-nest.org/eggs/26/018/)
+(v0.4.1). The [keyword reference](keywords.md) lists every keyword and
+component the action registers.
 
 ## Book and video
 
-The d-SEAMS book covers the module:
+The [d-SEAMS documentation](https://docs.dseams.info) covers the module:
 
 - [PLUMED how-to](https://docs.dseams.info/howto/engine-plumed.html)
 - [PLUMED walkthrough](https://docs.dseams.info/walkthrough/plumed.html)

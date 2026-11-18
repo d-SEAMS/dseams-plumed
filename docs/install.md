@@ -50,3 +50,12 @@ LOAD FILE=./libdseams_plumed.so
 
 A bare filename is not searched in the working directory; use
 `./libdseams_plumed.so` or an absolute path.
+
+## PLUMED-NEST egg
+
+On PLUMED 2.10 or newer, the PLUMED-NEST egg
+[plumID:26.018](https://www.plumed-nest.org/eggs/26/018/) (v0.4.1)
+bundles a self-contained `dseams_plumed.cpp` with the required
+`seams-core` `v2.14.0` code and Eigen 3.4.0 headers. Without a separate
+`seams-core` build, `LOAD FILE=dseams_plumed.cpp` compiles the action on
+first use, and the archive includes `plumed.dat` and `frame.xyz`.

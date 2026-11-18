@@ -26,8 +26,10 @@ COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_U
 The site at https://plumed.dseams.info/ carries the
 install steps and the keyword reference.
 
-- Book: [[https://docs.dseams.info/howto/engine-plumed.html][PLUMED how-to]]
+- Book: [[https://docs.dseams.info][d-SEAMS documentation]], with the
+  [[https://docs.dseams.info/howto/engine-plumed.html][PLUMED how-to]]
   and [[https://docs.dseams.info/walkthrough/plumed.html][PLUMED walkthrough]]
+- PLUMED-NEST: [[https://www.plumed-nest.org/eggs/26/018/][plumID:26.018]] (v0.4.1)
 - Video: [[https://odysee.com/dseams-plumed:ddd2f9e27e0a126ef3feba3bb6da8378464e57df][dseams-plumed walkthrough on Odysee]]
 
 * Install
@@ -61,6 +63,11 @@ meson install -C build   # libdseams_plumed.so into libdir
 
 =LOAD FILE== takes that path. A bare filename is not searched in the
 working directory; use =./libdseams_plumed.so= or an absolute path.
+
+On PLUMED 2.10 or later, the PLUMED-NEST egg
+[[https://www.plumed-nest.org/eggs/26/018/][plumID:26.018]] (v0.4.1)
+bundles =dseams_plumed.cpp=, which =LOAD= compiles on first use,
+together with =plumed.dat= and =frame.xyz=.
 
 * Keywords
 

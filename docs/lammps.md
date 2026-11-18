@@ -14,6 +14,8 @@ Use a `plumed.dat` as on the [home page](index.md) and `LENGTH_SCALE=1.0`
 after `UNITS LENGTH=A`. LAMMPS `units real` matches the A unit of the
 engine.
 
-The PLUMED-NEST egg under `nest/` carries a `plumed.dat` with one action
-each for ice nucleation in water, a growing front in an NaCl brine, and
-the filled cages of a methane hydrate.
+The PLUMED-NEST egg
+([plumID:26.018](https://www.plumed-nest.org/eggs/26/018/), v0.4.1;
+`nest/` in the repository) carries a `plumed.dat` with one action each
+for ice nucleation in water, a growing front in NaCl brine, and the
+filled cages of a methane hydrate.
