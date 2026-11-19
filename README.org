@@ -15,8 +15,9 @@ inside the engine use the unit A. =LENGTH_SCALE= converts from the
 PLUMED length unit (10 for the default nm, 1 after =UNITS LENGTH=A=).
 
 #+begin_src plumed
-LOAD FILE=./libdseams_plumed.so
-ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 COMPLETE
+UNITS LENGTH=A
+LOAD FILE=./build/libdseams_plumed.so
+ice: DSEAMS_CAGES ATOMS=1-4096 CUTOFF=3.5 LENGTH_SCALE=1.0 COMPLETE
 PRINT ARG=ice.nice,ice.nmax,ice.chillice,ice.chillmax STRIDE=100 FILE=ICE
 COMMITTOR ARG=ice.nmax STRIDE=100 BASIN_LL1=0 BASIN_UL1=20 BASIN_LL2=800 BASIN_UL2=100000
 #+end_src
@@ -62,7 +63,8 @@ meson install -C build   # libdseams_plumed.so into libdir
 #+end_src
 
 =LOAD FILE== takes that path. A bare filename is not searched in the
-working directory; use =./libdseams_plumed.so= or an absolute path.
+working directory; use =./build/libdseams_plumed.so= (from the build
+tree) or an installed path so the engine libraries stay reachable.
 
 On PLUMED 2.10 or later, the PLUMED-NEST egg
 [[https://www.plumed-nest.org/eggs/26/018/][plumID:26.018]] (v0.4.1)
@@ -133,9 +135,14 @@ Each component reports an integer count with no derivative.
 =nionliq= counts ions with no cage molecule in the first shell.
 =nclasses= counts distinct local topology classes on the mutual graph.
 =nnamed= counts molecules whose local key the =LIBRARY= names.
+=ncages= counts closed polyhedra matching =SIGNATURE=.
+=noccupied= counts =SIGNATURE= cages holding at least one guest.
+=nmultiple= counts =SIGNATURE= cages holding more than one guest.
+=nfreeguest= counts guests in no =SIGNATURE= cage.
 
 Omit =IONS= and the three ion components stay 0. Omit =LIBRARY= and
-=nnamed= stays 0.
+=nnamed= stays 0. Omit =SIGNATURE= and =ncages= stays 0; omit =GUESTS=
+and the three guest components stay 0.
 
 * Ions
 
@@ -148,8 +155,9 @@ three ion components report brine rejection at a growing front in an
 electrolyte, for example TIP4P/2005 with the Madrid 2019 ions.
 
 #+begin_src plumed
-LOAD FILE=./libdseams_plumed.so
-brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 COMPLETE
+UNITS LENGTH=A
+LOAD FILE=./build/libdseams_plumed.so
+brine: DSEAMS_CAGES ATOMS=1-3000 IONS=3001-3060 ION_CUTOFF=3.5 LENGTH_SCALE=1.0 COMPLETE
 PRINT ARG=brine.nice,brine.nmax,brine.nionice,brine.nionfront,brine.nionliq STRIDE=500 FILE=BRINE
 #+end_src
 
@@ -163,10 +171,12 @@ the Python and Lua front ends. Then =nnamed= counts the molecules whose
 key the library names. The same count names a hydrate framework or a
 high-pressure ice.
 
-#+begin_example
-hyd: DSEAMS_CAGES ATOMS=1-2944 LIBRARY=sI_sII.keys,sI_sII_h2.keys HOPS=3
+#+begin_src plumed
+UNITS LENGTH=A
+LOAD FILE=./build/libdseams_plumed.so
+hyd: DSEAMS_CAGES ATOMS=1-2944 LENGTH_SCALE=1.0 LIBRARY=sI_sII.keys,sI_sII_h2.keys HOPS=3
 PRINT ARG=hyd.nnamed,hyd.nclasses STRIDE=500 FILE=HYDRATE
-#+end_example
+#+end_src
 
 * Inside LAMMPS
 
@@ -196,8 +206,7 @@ The dump becomes xyz with the cell on the comment line. The check
 does not depend on the molfile plugin.
 
 #+begin_src bash
-python tests/driver_check.py $(which plumed) build/libdseams_plumed.so \
-    data/nucleation.lammpstrj results/walks/figshare-nucleation.txt
+pixi run python tests/driver_check.py "$(pixi run which plumed)" "$PWD/build/libdseams_plumed.so"
 #+end_src
 
 =driver_ions= (=tests/ion_check.py=) places two ions on a cubic-diamond
@@ -211,7 +220,8 @@ It checks =ncages= 125, =noccupied= 64, =nmultiple= 0 and =nfreeguest= 0.
 =driver_library= (=tests/library_check.py=) writes a cubic-diamond
 lattice, emits its key library with =seams fingerprint --emit-library=,
 and checks that =nnamed= equals the molecule count and =nclasses= is
-one. Meson registers this test when a =seams= binary is on =PATH=.
+one. Meson takes =seams= from =PATH=, or the CLI the seams-core wrap
+builds.
 
 * Changelog
 
