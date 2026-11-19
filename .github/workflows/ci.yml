@@ -25,9 +25,18 @@ jobs:
           environments: default
           cache-key: pixi-default-
           locked: false
-      - run: pixi run setup
-      - run: pixi run build
-      - run: pixi run test
+      - name: Configure with chemfiles and readcon-core explicitly enabled
+        run: |
+          pixi run meson setup build --buildtype=release \
+            -Dseams-core:with_tests=false \
+            -Dseams-core:with_chemfiles=enabled -Dseams-core:with_readcon=enabled
+      - run: pixi run meson compile -C build
+      - run: pixi run meson test -C build --print-errorlogs
+      - name: This build's engine has both structure readers
+        run: |
+          pixi run python tests/feature_check.py \
+            "$(pixi run which plumed)" "$PWD/build/libdseams_plumed.so" \
+            --require-chemfiles --require-readcon
 
   nest-archive:
     runs-on: ubuntu-latest

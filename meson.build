@@ -48,6 +48,19 @@ if pymod.found()
     args: [meson.project_source_root() / 'tests' / 'guest_check.py',
            plumed.full_path(), mod.full_path()],
     timeout: 600)
+  # Reports dseams_plumed_has_chemfiles()/has_readcon() every build, whether
+  # or not the engine has those optional readers: a build without them must
+  # still succeed (and this test with it), only the printed values differ.
+  # ci.yml's build-test job configures with -Dseams-core:with_chemfiles=enabled
+  # -Dseams-core:with_readcon=enabled explicitly (a deliberate configuration,
+  # not auto-detection), so it additionally runs this script with
+  # --require-chemfiles --require-readcon, which fails (not skips) if either
+  # is unexpectedly missing there.
+  test('feature_query',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'feature_check.py',
+           plumed.full_path(), mod.full_path()],
+    timeout: 60)
   # the library check needs the engine CLI to write the keys. An
   # installed seams is used when it is on PATH; otherwise the CLI the
   # wrap just built.
