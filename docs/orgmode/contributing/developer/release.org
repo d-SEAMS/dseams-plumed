@@ -77,8 +77,8 @@ Tooling:
 | [[https://docs.cocogitto.io][cocogitto]] (=cog=) 7+ | Conventional-commit aware bump, version commit, annotated tag |
 | [[https://towncrier.readthedocs.io][towncrier]] | Curated =CHANGELOG.md= from =changelog.d/= |
 | [[https://github.com/nedbat/cogapp][cogapp]] | Rewrites the version copies in =ci/version/files.txt= |
-| =.github/workflows/ci.yml= | Every push/PR to =main=: engine pin, version check, build, test, both NEST-archive toolchains |
-| =.github/workflows/release.yml= | On =v*= tags: builds the NEST archive, verifies it, publishes a GitHub Release with it attached |
+| =.github/workflows/ci.yml= | Every push/PR to =main=: engine pin, version check, on a pull request =towncrier check --compare-with origin/main=, build, test, both NEST-archive toolchains |
+| =.github/workflows/release.yml= | On =v*= tags: =CHANGELOG.md= heading for the tag, cogapp regeneration then =git diff --exit-code=, NEST archive build and verification, GitHub Release |
 | =.github/workflows/docs.yml= | Builds and link-checks the reader site (=docs/*.md=), deploys it from =main= |
 
 cocogitto is not a conda-forge package; install it once with:
@@ -108,10 +108,21 @@ printf '%s\n' "Short user-facing note." > changelog.d/+slug.added.md
 #+end_src
 
 Preview with =towncrier build --draft= or =pixi run -e version towncrier-draft=.
-Unlike rgpot, no CI job currently fails a pull request that adds no
-fragment; this is a convention enforced by review, not by a check (adding
-that check is future work, out of scope for this pass; see
-[[file:faq.org][FAQ]] for what this pass did and did not change here).
+
+=.github/workflows/ci.yml='s =build-test= job checks out full history
+(=fetch-depth: 0=) and, on a pull request, runs:
+
+#+attr_dseams: syntax fails the job when the pull request adds no fragment
+#+begin_src bash
+git fetch origin main
+pixi run -e version towncrier check --compare-with origin/main
+#+end_src
+
+=towncrier check= runs =git diff --name-only origin/main...= and fails when
+that diff is non-empty and contains no fragment under =changelog.d/=. A
+push to =main= does not run this step. The tag workflow's heading check
+below is the other half: the published tag still needs a =## [X.Y.Z]=
+entry, which =towncrier build= writes at =cog bump=.
 
 ** Commit check
 
@@ -205,13 +216,56 @@ PR merge commits, visible in =git log --oneline=).
    annotated tag =vX.Y.Z= on it. The hand-written =meson.build= edit from
    step 4 and this generated commit are both part of the push.
 
-7. The tag push triggers =release.yml= (=nest-archive= job): fetches the
-   pinned seams-core tag and Eigen 3.4.0, builds and verifies the NEST
-   archive (regeneration =cmp=, an inline tag-matches-version check, an
-   inline =md5sum= of the built archive against =nest/nest.yml='s =md5=,
-   =nest_zip_check.py=), creates a draft GitHub Release, uploads the
-   archive, downloads it back and =cmp='s it, then publishes the release
-   and re-=cmp='s the URL in =nest/nest.yml= against the built archive.
+7. The tag push triggers =release.yml= (=nest-archive= job). The steps,
+   in order, are:
+
+   - =actions/checkout=
+   - one line, =grep -F "## [${GITHUB_REF_NAME#v}]" CHANGELOG.md=. For a
+     tag =vX.Y.Z= this fails the job unless =CHANGELOG.md= contains the
+     heading =## [X.Y.Z]= (towncrier's =title_format= writes
+     =## [X.Y.Z] - date=)
+   - =prefix-dev/setup-pixi= with the =version= environment
+   - re-run the repository's documented regeneration and fail on any
+     tracked diff. That regeneration is cogapp over every file in
+     =ci/version/files.txt=. The developer guide is Org source and has no
+     Org-to-Markdown export (see
+     [[file:testing.org::*Documentation build][Testing]]), so this step
+     does not run one:
+
+     #+attr_dseams: syntax rewrites version copies, then fails if the tree changed
+     #+begin_src bash
+     pixi run -e version python -m cogapp -I ci/version -r @ci/version/files.txt
+     git diff --exit-code
+     #+end_src
+
+   - =./.github/actions/test-env= with toolchain =gcc=
+   - fetch seams-core at =SEAMS_CORE_TAG= and the Eigen 3.4.0 tarball,
+     then =sha256sum -c= the tarball against =EIGEN_SHA256=
+   - build and verify the NEST archive:
+
+     #+attr_dseams: syntax the release.yml run block, with the runner paths it uses
+     #+begin_src bash
+     "$PWD/.test-env/bin/python" scripts/build_nest_zip.py \
+       --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
+     VERSION="$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" meson.build)"
+     ARCHIVE="dist/dseams-plumed-v${VERSION}-nest.zip"
+     test "$GITHUB_REF_NAME" = "v${VERSION}"
+     EXPECTED_MD5="$(sed -n 's/^md5: //p' nest/nest.yml)"
+     ACTUAL_MD5="$(md5sum "$ARCHIVE" | cut -d' ' -f1)"
+     test "$ACTUAL_MD5" = "$EXPECTED_MD5"
+     MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p "$PWD/.test-env" \
+       python tests/nest_zip_check.py plumed "$ARCHIVE"
+     #+end_src
+
+     =scripts/build_nest_zip.py= exits before writing the archive when
+     =nest/dseams_plumed.cpp= differs from the source it regenerates.
+   - =gh release create "$GITHUB_REF_NAME" --draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes=,
+     =gh release upload= of the archive, =gh release download --pattern=
+     the archive basename into =.draft-check=, and =cmp= of that download
+     against the built archive
+   - =gh release edit "$GITHUB_REF_NAME" --draft=false=
+   - =url="$(sed -n 's/^url: //p' nest/nest.yml)"=, =curl -fsSL -o published.zip "$url"=,
+     and =cmp published.zip= against the built archive
 
 ** Updating the PLUMED-NEST catalogue entry
 
@@ -241,8 +295,10 @@ git push origin HEAD --follow-tags
 
 ** After the tag
 
-1. Confirm the =Release= workflow: archive rebuild and verification, draft
-   creation, upload/download =cmp=, publish, published-URL =cmp=.
+1. Confirm the =Release= workflow: changelog heading, cogapp
+   regeneration with =git diff --exit-code=, archive rebuild and
+   verification, draft creation, upload/download =cmp=, publish,
+   published-URL =cmp=.
 2. Confirm =nest/nest.yml= on =main= matches the published archive (the
    workflow enforces this before publishing; re-run the archive build and
    =md5sum= it against =nest/nest.yml= locally if in doubt).

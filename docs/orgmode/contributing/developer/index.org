@@ -98,6 +98,9 @@ in this repository). Before pushing, run what CI runs:
 #+begin_src bash
 python3 tests/check_engine_pin.py
 pixi run -e version python -m cogapp -I ci/version --check @ci/version/files.txt
+# pull requests only; ci.yml checks out full history first
+git fetch origin main
+pixi run -e version towncrier check --compare-with origin/main
 pixi run setup
 pixi run build
 pixi run test
