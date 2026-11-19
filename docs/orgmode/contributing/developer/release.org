@@ -119,10 +119,12 @@ pixi run -e version towncrier check --compare-with origin/main
 #+end_src
 
 =towncrier check= runs =git diff --name-only origin/main...= and fails when
-that diff is non-empty and contains no fragment under =changelog.d/=. A
-push to =main= does not run this step. The tag workflow's heading check
-below is the other half: the published tag still needs a =## [X.Y.Z]=
-entry, which =towncrier build= writes at =cog bump=.
+that diff is non-empty and contains no fragment under =changelog.d/=.
+When the same diff includes =CHANGELOG.md=, towncrier exits 0 and prints
+=Checks SKIPPED: news file changes detected.= A push to =main= does not
+run this step. The tag workflow's heading check below is the other half:
+the published tag still needs a =## [X.Y.Z]= entry, which
+=towncrier build= writes at =cog bump=.
 
 ** Commit check
 
