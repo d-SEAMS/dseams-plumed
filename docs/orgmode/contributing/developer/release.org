@@ -1,0 +1,249 @@
+#+TITLE: Release Process
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Release Process
+
+dseams-plumed has one release version, written by hand in one place: the
+=version:= key of =project()= in the root =meson.build=, the same role
+rgpot's root =Cargo.toml= =[workspace.package]= =version= plays. Every
+other copy sits between cogapp markers in a file listed in
+=ci/version/files.txt=: =pixi.toml= (the =[workspace]= =version= key),
+=CITATION.cff=, =towncrier.toml=, and =nest/nest.yml= (its release =url=
+only; =md5= is a build-time value, see below). Each marker is a
+self-contained, one-line cogapp snippet that opens =meson.build= and
+regexes the version out directly, the way rgpot's copies read
+=Cargo.toml=, with no helper module in =ci/version/=:
+
+#+begin_src toml
+# [[[cog import re; cog.outl('version = "%s"' % re.search(r"version:\s*'([^']+)'", open("meson.build").read()).group(1))]]]
+version = "0.4.1"
+# [[[end]]]
+#+end_src
+
+Regenerate the copies, or check them, with the cogapp tasks of the
+=version= pixi environment:
+
+#+attr_dseams: syntax rewrites the version copies
+#+begin_src bash
+pixi run -e version release-cog
+pixi run -e version version-drift
+#+end_src
+
+The tasks call =python -m cogapp=, because cocogitto also installs a =cog=
+script of its own, and the two must not collide on =PATH=. Git tags are
+=vX.Y.Z= (see =cog.toml= =tag_prefix=).
+
+There is no version-writing or drift-checking script anywhere in this
+repository, and neither =pre_bump_hook= below calls one: =cog.toml='s
+hooks are exactly cogapp and towncrier, matching rgpot's own
+=pre_bump_hooks= for its =ci/version/files.txt=.
+
+=nest/nest.yml='s =md5= and =CHANGELOG.md='s section are not cogapp
+copies: both depend on the *built* archive (the archive does not exist
+until the release build runs), so a static regex-and-substitute pass
+cannot produce them. =nest/nest.yml='s =md5= is hand-updated by the
+maintainer as part of release prep (see
+[[*Preparing a release (maintainer)][below]]); =CHANGELOG.md= is
+towncrier's job, not cogapp's, and the second =pre_bump_hook= runs it.
+
+*Canonical changelog*: repository-root =CHANGELOG.md= (towncrier, from
+=changelog.d/=; see =changelog.d/README.md= for fragment naming). This
+mechanism predates this guide and is unchanged; =cog.toml= calls it rather
+than re-implementing changelog curation.
+
+** This binding's registry
+
+dseams-plumed has no language package registry (no PyPI/crates.io/conda-forge
+distribution of its own): it is a PLUMED Colvar, loaded with =LOAD FILE=...=
+or compiled on first use by =plumed mklib=. Its registry is a *GitHub
+Release* on
+[[https://github.com/d-SEAMS/dseams-plumed/releases][d-SEAMS/dseams-plumed]],
+carrying one asset: the self-contained PLUMED-NEST source archive
+(=dseams-plumed-vX.Y.Z-nest.zip=; =nest/README.md=, =scripts/build_nest_zip.py=).
+=.github/workflows/release.yml= builds and publishes it on every =v*= tag
+push. There is also a *PLUMED-NEST* catalogue entry
+([[https://www.plumed-nest.org/eggs/26/018/][plumID:26.018]]) that mirrors
+the published archive for discoverability; that submission is a manual web
+form on plumed-nest.org (see
+[[*Updating the PLUMED-NEST catalogue entry][below]]), not part of the
+automated path, and is unaffected by every step up to and including the
+GitHub Release.
+
+Tooling:
+
+| Tool | Role |
+|------+------|
+| [[https://docs.cocogitto.io][cocogitto]] (=cog=) 7+ | Conventional-commit aware bump, version commit, annotated tag |
+| [[https://towncrier.readthedocs.io][towncrier]] | Curated =CHANGELOG.md= from =changelog.d/= |
+| [[https://github.com/nedbat/cogapp][cogapp]] | Rewrites the version copies in =ci/version/files.txt= |
+| =.github/workflows/ci.yml= | Every push/PR to =main=: engine pin, version check, build, test, both NEST-archive toolchains |
+| =.github/workflows/release.yml= | On =v*= tags: builds the NEST archive, verifies it, publishes a GitHub Release with it attached |
+| =.github/workflows/docs.yml= | Builds and link-checks the reader site (=docs/*.md=), deploys it from =main= |
+
+cocogitto is not a conda-forge package; install it once with:
+
+#+attr_dseams: syntax needs a Rust toolchain (a default pixi dependency)
+#+begin_src bash
+cargo install cocogitto --locked
+#+end_src
+
+cogapp also installs its own =cog= console script (used internally by
+cocogitto's own packaging, unrelated to this project). When both are
+installed, make sure cocogitto's =cog= (from =cargo install=, typically
+=~/.cargo/bin/cog=) resolves ahead of the =version= pixi environment's
+=bin/= on =PATH= before running =cog bump= or =cog check= directly; the
+=pre_bump_hooks= below always call cogapp through =python -m cogapp=
+specifically to avoid this collision for the hooks themselves.
+
+** Changelog fragments
+
+Add a fragment under =changelog.d/= for each user-visible change, in the
+same commit as the change (see =changelog.d/README.md=):
+
+#+attr_dseams: syntax writes a fragment file
+#+begin_src bash
+# Types (Keep a Changelog): added, changed, deprecated, removed, fixed, security.
+printf '%s\n' "Short user-facing note." > changelog.d/+slug.added.md
+#+end_src
+
+Preview with =towncrier build --draft= or =pixi run -e version towncrier-draft=.
+Unlike rgpot, no CI job currently fails a pull request that adds no
+fragment; this is a convention enforced by review, not by a check (adding
+that check is future work, out of scope for this pass; see
+[[file:faq.org][FAQ]] for what this pass did and did not change here).
+
+** Commit check
+
+Cocogitto 7 checks a positional range:
+
+#+attr_dseams: syntax needs cocogitto and a base revision
+#+begin_src bash
+cog check --ignore-merge-commits <base>..HEAD
+#+end_src
+
+There is no =cog check --from=; =--from-latest-tag= is a boolean and shares
+a group with that range. =cog.toml= sets =ignore_merge_commits = true=,
+which skips a commit with more than one parent (this repository's GitHub
+PR merge commits, visible in =git log --oneline=).
+
+** Preparing a release (maintainer)
+
+1. Ensure =main= is green: the =CI= workflow (engine pin, version check,
+   build, test, both NEST-archive jobs) and the =Docs= workflow.
+2. Confirm fragments exist for everything since the last tag:
+
+   #+attr_dseams: syntax dry run; writes nothing
+   #+begin_src bash
+   pixi run -e version towncrier-draft
+   #+end_src
+
+3. Decide the next version (semantic: =major.minor.patch=). =cog bump
+   --dry-run= reports what cocogitto would compute from conventional
+   commits since the last tag, without writing or tagging anything:
+
+   #+attr_dseams: syntax needs cocogitto; writes nothing, tags nothing
+   #+begin_src bash
+   cog bump --dry-run --auto   # or --dry-run --patch / --minor / --major
+   #+end_src
+
+4. Hand-edit =meson.build='s =version:= to that value and commit it by
+   itself (cocogitto refuses to bump with anything else staged or
+   modified):
+
+   #+attr_dseams: syntax the one hand-written version edit, its own commit
+   #+begin_src bash
+   # edit meson.build's version: 'X.Y.Z' line
+   git commit -am "chore: bump version to X.Y.Z"
+   #+end_src
+
+   If the release also updates the PLUMED-NEST archive (any change under
+   =src/=, =nest/=, or the pinned =seams-core= tag since the last release),
+   build it locally first and hand-update =nest/nest.yml='s =md5= to match,
+   in the same commit: =release.yml='s archive-md5 check (below) compares
+   the built archive's real md5 against whatever is already committed
+   there, so a stale =md5= fails the release build rather than publishing
+   a mismatched catalogue entry.
+
+5. Local sanity, every non-publishing step, dry run (see REPORT.md for
+   this pass's actual output of each):
+
+   #+attr_dseams: syntax none of these push, tag, or publish anything
+   #+begin_src bash
+   pixi run -e version version-drift
+   cog check --ignore-merge-commits <last-tag>..HEAD
+   cog bump --dry-run --version X.Y.Z
+   pixi run setup && pixi run build && pixi run test   # "the package build"
+   #+end_src
+
+   =cog bump --dry-run= does not run any hook and does not commit or tag;
+   it only reports the version cocogitto would produce.
+
+6. Cut the release *locally* (needs push rights to =main=; does not publish
+   by itself: the tag push triggers =release.yml=). Run =cog bump= with the
+   version's pixi environment bin directory and cocogitto's own install
+   both on =PATH=, cocogitto's first (see
+   [[*Why is =cog= not a pixi dependency?][FAQ]]), and the exact version
+   just committed into =meson.build=. =cog bump= runs =cog.toml='s
+   =pre_bump_hooks= in order:
+
+   - =python3 -m cogapp -I ci/version -r @ci/version/files.txt= regenerates
+     every copy in =ci/version/files.txt= (=pixi.toml=, =CITATION.cff=,
+     =towncrier.toml=, =nest/nest.yml='s =url=) from =meson.build=
+   - =towncrier build --yes --version {{version}}= updates =CHANGELOG.md=
+     and clears the fragments
+
+   #+attr_dseams: syntax cocogitto's cog first on PATH, then the version environment's python3/towncrier
+   #+begin_src bash
+   PATH="$HOME/.cargo/bin:$PWD/.pixi/envs/version/bin:$PATH" \
+     cog bump --version X.Y.Z   # the same X.Y.Z just committed above
+   git push origin HEAD --follow-tags
+   #+end_src
+
+   This creates a second commit, =chore(version): vX.Y.Z=, containing the
+   cogapp-regenerated copies and the towncrier changelog update, and an
+   annotated tag =vX.Y.Z= on it. The hand-written =meson.build= edit from
+   step 4 and this generated commit are both part of the push.
+
+7. The tag push triggers =release.yml= (=nest-archive= job): fetches the
+   pinned seams-core tag and Eigen 3.4.0, builds and verifies the NEST
+   archive (regeneration =cmp=, an inline tag-matches-version check, an
+   inline =md5sum= of the built archive against =nest/nest.yml='s =md5=,
+   =nest_zip_check.py=), creates a draft GitHub Release, uploads the
+   archive, downloads it back and =cmp='s it, then publishes the release
+   and re-=cmp='s the URL in =nest/nest.yml= against the built archive.
+
+** Updating the PLUMED-NEST catalogue entry
+
+After the GitHub Release is published, =nest/nest.yml= already points at
+its (now live) download URL and carries the matching =md5= (the
+hand-update in step 4 above, enforced against the real built archive by
+=release.yml='s inline =md5sum= check before the release publishes).
+Submitting or updating the corresponding entry on
+[[https://www.plumed-nest.org][plumed-nest.org]] is a manual web
+submission by a project maintainer with PLUMED-NEST access; it is outside
+this repository and outside what a GitHub Actions token can do, so it is
+not automated here. =nest/README.md= is the archive's own install/usage
+documentation and is what a PLUMED-NEST reviewer reads.
+
+** Emergency / hotfixes
+
+Same two-step shape as a normal release, just with =--patch= to pick the
+next version:
+
+#+attr_dseams: syntax dry run, then the hand edit, then the real bump
+#+begin_src bash
+cog bump --dry-run --patch   # reports the next patch version, writes nothing
+# edit meson.build's version: to that value; git commit -am "chore: bump version to X.Y.Z"
+PATH="$HOME/.cargo/bin:$PWD/.pixi/envs/version/bin:$PATH" cog bump --version X.Y.Z
+git push origin HEAD --follow-tags
+#+end_src
+
+** After the tag
+
+1. Confirm the =Release= workflow: archive rebuild and verification, draft
+   creation, upload/download =cmp=, publish, published-URL =cmp=.
+2. Confirm =nest/nest.yml= on =main= matches the published archive (the
+   workflow enforces this before publishing; re-run the archive build and
+   =md5sum= it against =nest/nest.yml= locally if in doubt).
+3. Optional: submit or update the PLUMED-NEST catalogue entry (see above).

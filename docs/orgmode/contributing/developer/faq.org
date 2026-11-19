@@ -1,0 +1,126 @@
+#+TITLE: Developer FAQ
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Developer FAQ
+
+** Why doesn't DSEAMS_CAGES read structure files, when seams-core has chemfiles and readcon-core?
+
+seams-core's engine supports PDB/GRO/DCD through
+[[https://chemfiles.org][chemfiles]] and =.con= through
+[[https://github.com/lode-org/readcon-core][readcon-core]] for its own CLI
+and front ends (=seams-core/src/chemfiles_io.cpp=,
+=seams-core/src/include/internal/seams_input.hpp=). =DSEAMS_CAGES= is a
+PLUMED Colvar, not a standalone analysis program: every frame already
+arrives from the host MD engine through PLUMED's own
+=getPosition()=/=getBox()=, so there is nothing for this action to open a
+structure file for. The only file =DSEAMS_CAGES= reads is =LIBRARY=, a
+plain-text topology-key library, via =std::ifstream= (not a structure
+format, and not through chemfiles or readcon-core).
+
+=scripts/generate_nest_source.py= notes the same thing when it amalgamates
+the PLUMED-NEST archive: trajectory I/O is deliberately left out of the
+bundled source because the action never calls it.
+
+** Then why add =dseams_plumed_has_chemfiles()=/=has_readcon()= at all?
+
+Because the module *does* expose the engine, even though it never calls
+into either reader: =meson.build='s =dependencies: [yds_dep]= on the
+=dseams_plumed= shared module carries seams-core's
+=-DSEAMS_HAS_CHEMFILES=/=-DSEAMS_HAS_READCON= compile_args onto
+=src/DseamsCages.cpp='s own compile line (the same flags
+=subprojects/seams-core/src/meson.build='s =pkgconfig.generate(...,
+extra_cflags: _public_defines)= exposes to an installed consumer), and the
+engine headers under =subprojects/seams-core/src/include/internal= are on
+this module's include path regardless. A caller that only has
+=libdseams_plumed.so= (no PLUMED process, for example a CI smoke test or a
+packaging check) can =dlopen= it and query those two feature flags without
+also linking seams-core itself. See
+[[file:testing.org::*Feature query (][Feature query]] in Testing, and
+README.org's "Engine readers and the feature query" section for the exact
+mechanism.
+
+** Why is there no version-writing or drift-checking script?
+
+There used to be one, =scripts/project_version.py=, predating =cog.toml=:
+a =--set= flag to write =meson.build='s version and a =--check= flag to
+diff every copy (=pixi.toml=, =CITATION.cff=, =nest/nest.yml=,
+=CHANGELOG.md=) against it. rgpot has no such script for its own
+=ci/version/files.txt= copies: =cog.toml='s =pre_bump_hooks= are exactly
+cogapp and towncrier, and nothing else calls a script to write or check a
+version. This project now follows that exactly: =cog.toml='s two hooks are
+=python3 -m cogapp -I ci/version -r @ci/version/files.txt= and
+=towncrier build --yes --version {{version}}=, full stop. Every copy in
+=ci/version/files.txt= (=pixi.toml=, =CITATION.cff=, =towncrier.toml=,
+=nest/nest.yml='s =url=) carries a one-line cogapp snippet that reads
+=meson.build= directly (=open("meson.build")= plus a regex), so there is
+no helper module in =ci/version/= either — =-I ci/version= in the hook is
+vestigial (nothing is imported from there any more) but is kept because
+the mandated hook text names it verbatim.
+
+=meson.build='s =version:= is written by hand, the same role rgpot's root
+=Cargo.toml= =[workspace.package]= =version= plays; cocogitto will not
+bump with anything else staged, so that edit is its own commit before
+=cog bump --version X.Y.Z= runs (see
+[[file:release.org::*Preparing a release (maintainer)][release.org]]).
+=nest/nest.yml='s =md5= and the =CHANGELOG.md= section are not cogapp
+copies either, for the same reason the old script treated them specially:
+both depend on the *built* archive, which does not exist until the
+release build runs, so there is nothing a static regex pass can read.
+=nest/nest.yml='s =md5= is still hand-updated as part of release prep, and
+=release.yml= still checks it against the real built archive — with an
+inline =md5sum= comparison in the workflow now, not a script.
+=CHANGELOG.md= is towncrier's job; the second hook runs it directly.
+
+=scripts/project_version.py= was not only a version-writing/checking
+script, though: =scripts/build_nest_zip.py= imported its
+=read_version()=/=archive_name()= to name the archive it builds. Deleting
+the file outright would have broken NEST archive packaging, which has
+nothing to do with the version-copy-sync rule this pass removes. Those two
+small functions now live directly in =build_nest_zip.py=, the one script
+that actually needs them, instead of a separate importable module.
+
+** Why =changelog.d/= and not =docs/newsfragments/= like rgpot?
+
+=changelog.d/= and its =towncrier.toml= predate this developer guide and
+already work (fragments feed =CHANGELOG.md= correctly; see
+=changelog.d/README.md=). Renaming it to match rgpot's directory name
+would only create churn for no behavior change, so it stays. The brief
+adaptation here is purely nominal: the fragment-driven towncrier mechanism
+itself, and the =cocogitto= + =towncrier= release pairing, follow rgpot's
+pattern.
+
+** Why is =cog= not a pixi dependency?
+
+cocogitto has no conda-forge package. Install it once with
+=cargo install cocogitto --locked= (a plain Rust toolchain is already a
+default pixi dependency); see [[file:release.org][release.org]]. cogapp and
+towncrier, which *are* conda-forge packages, live in the =version= pixi
+feature instead (=pixi r -e version ...=).
+
+cogapp's own package also installs a console script named =cog=, distinct
+from cocogitto's =cog=. =cog bump='s hooks need the =version= pixi
+environment's =python3= (for =-m cogapp=) and =towncrier= on =PATH=, but
+activating that environment (=pixi shell -e version= or similar) puts
+cogapp's =cog= script ahead of cocogitto's. Run =cog bump= and =cog check=
+with cocogitto's own install (typically =~/.cargo/bin/cog= from
+=cargo install=) placed first on =PATH= instead, and the =version=
+environment's =.pixi/envs/version/bin= after it:
+
+#+begin_src bash
+PATH="$HOME/.cargo/bin:$PWD/.pixi/envs/version/bin:$PATH" cog bump --version X.Y.Z
+#+end_src
+
+=pixi install -e version= must have run at least once so that directory
+exists. The =pre_bump_hooks= themselves sidestep the collision from the
+other direction, by calling cogapp through =python3 -m cogapp= rather than
+bare =cog=.
+
+** Why does the =version= pixi feature restrict platforms to linux-64/osx-64?
+
+conda-forge does not publish a =cogapp= build for osx-arm64. Restricting
+only the =version= feature's platforms (not the whole workspace) keeps
+=pixi install='s default environment solving on every platform in
+=pixi.toml='s =platforms=; only =pixi install -e version= (or
+=pixi r -e version ...=) is unavailable on osx-arm64, and contributors
+there can run =towncrier=/=cogapp= through another install method instead.
