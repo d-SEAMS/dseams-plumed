@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Engine pin is the seams-core tag
         run: python3 tests/check_engine_pin.py
       - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
@@ -25,6 +27,11 @@ jobs:
           locked: false
       - name: Version copies agree with meson.build
         run: pixi run -e version python -m cogapp -I ci/version --check @ci/version/files.txt
+      - name: Pull request has a changelog fragment
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin main
+          pixi run -e version towncrier check --compare-with origin/main
       - name: Configure with chemfiles and readcon-core explicitly enabled
         run: |
           pixi run meson setup build --buildtype=release \
