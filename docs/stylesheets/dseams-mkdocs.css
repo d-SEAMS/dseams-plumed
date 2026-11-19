@@ -317,7 +317,6 @@ body {
 .md-typeset .highlight code {
   background: transparent;
   color: var(--ds-code-text);
-  padding: 0;
   font-size: 13.5px;
 }
 
@@ -338,9 +337,12 @@ body {
   margin: 0;
 }
 
-.md-typeset pre > code {
-  padding: 0.9rem 1.1rem;
+.md-typeset pre > code,
+.md-typeset .highlight pre > code {
+  display: block;
+  padding: 0.9rem 2.75rem 0.9rem 1.1rem;
   line-height: 1.6;
+  overflow-x: auto;
 }
 
 .md-typeset > pre,
@@ -505,8 +507,9 @@ body {
 .md-typeset iframe {
   display: block;
   max-width: 100%;
-  border: 0;
+  border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius);
+  background: var(--ds-bg-subtle);
 }
 
 /* Material's stock header icon repeats the family brand; a site's own logo image stays. */
