@@ -46,6 +46,37 @@ accepted when =pkg-config seams-core= reports 2.14.0 or newer. The
 setup passes =-Dseams-core:with_tests=false= so =meson test= runs this
 module's driver tests. The engine's own suite stays in seams-core.
 
+** Engine readers and the feature query
+
+=DSEAMS_CAGES= takes every frame from the MD engine through PLUMED's
+=ATOMS=/=IONS=/=GUESTS= (=getPosition()=/=getBox()=); it never opens a
+structure file itself. The one file it reads is =LIBRARY=, a plain-text
+topology key library (=std::ifstream=), not a molecular structure
+format. seams-core's own optional readers, PDB/GRO/DCD through
+[[https://chemfiles.org][chemfiles]] and =.con= through
+[[https://github.com/lode-org/readcon-core][readcon-core]], build in
+automatically whenever the linked engine has them (the wrap's
+=subprojects/seams-core/src/meson.build= probes for both and defines
+=SEAMS_HAS_CHEMFILES=/=SEAMS_HAS_READCON=; =pkg-config seams-core=
+reports the same through its =extra_cflags=), but this module has no
+reader of its own to gain from them, so it never calls into either.
+
+The built =libdseams_plumed.so= still exports two =extern "C"=
+functions reporting what the linked engine supports, queryable without
+a running PLUMED process (=dlopen= the module, after the PLUMED kernel
+is already loaded or preloaded, and =dlsym= the symbol):
+
+- =bool dseams_plumed_has_chemfiles()=
+- =bool dseams_plumed_has_readcon()=
+
+=tests/feature_check.py= exercises both (see
+[[https://plumed.dseams.info/tests/][Driver tests]] in the docs site);
+=DSEAMS_CAGES= also logs the same two values once at setup. A build
+without chemfiles or readcon-core (for example
+=-Dseams-core:with_chemfiles=disabled -Dseams-core:with_readcon=disabled=)
+still configures, builds and passes every test; only the reported
+values change to =no=.
+
 With pixi (plumed, compilers, meson):
 
 #+begin_src bash

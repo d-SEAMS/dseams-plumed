@@ -63,6 +63,31 @@ with `LIBRARY=ic.keys,ic2.keys`, and checks `nclasses = 1` and
 `nnamed = 512`. Meson locates `seams` on `PATH` or uses the CLI built by the
 `seams-core` wrap.
 
+### Feature query (`feature_query`)
+
+`DSEAMS_CAGES` never opens a structure file (frames come from the MD
+engine), so there is nothing here to read a `.con`, PDB or GRO file
+through. `tests/feature_check.py` instead checks the two `extern "C"`
+functions the built `libdseams_plumed.so` exports, reporting whether the
+linked `seams-core` engine was built with its optional
+[chemfiles](https://chemfiles.org) (PDB/GRO/DCD) and
+[readcon-core](https://github.com/lode-org/readcon-core) (`.con`) readers:
+
+```bash
+pixi run python tests/feature_check.py \
+  "$(pixi run which plumed)" "$PWD/build/libdseams_plumed.so"
+```
+
+The script preloads the PLUMED kernel with `RTLD_GLOBAL` before loading the
+module, the same resolution `LOAD` gets inside a running `plumed driver`,
+then calls `dseams_plumed_has_chemfiles()` and `dseams_plumed_has_readcon()`
+through `ctypes`. With `--require-chemfiles`/`--require-readcon` the check
+fails (does not skip) when that reader is absent; CI's `build-test` job
+configures with `-Dseams-core:with_chemfiles=enabled
+-Dseams-core:with_readcon=enabled` explicitly (a deliberate configuration,
+not relying on auto-detection), so it runs the script that way to make
+sure the assertion cannot pass silently.
+
 ## Running `plumed driver` on your own xyz trajectory
 
 PLUMED's `--ixyz` reader accepts nine numbers on each frame's comment line
