@@ -45,12 +45,19 @@ def canonical_url(root: Path, page: Path) -> str:
 
 
 def page_title(text: str, page: Path, root: Path) -> str:
+    rel = page.relative_to(root).as_posix()
+    if rel == "404.html":
+        return f"Page not found - {SITE_NAME}"
     match = TITLE_RE.search(text)
     title = re.sub(r"<[^>]+>", "", match.group(1)) if match else ""
     title = " ".join(html.unescape(title).split())
     if not title:
         title = page.relative_to(root).with_suffix("").as_posix().replace("/", " - ")
     return title
+
+
+def is_error_page(root: Path, page: Path) -> bool:
+    return page.relative_to(root).as_posix() == "404.html"
 
 
 def metadata(title: str, description: str, canonical: str) -> str:
@@ -124,6 +131,8 @@ def enhance_site(root: Path) -> None:
         "urlset", xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
     )
     for page in html_pages:
+        if is_error_page(root, page):
+            continue
         entry = ElementTree.SubElement(sitemap, "url")
         ElementTree.SubElement(entry, "loc").text = canonical_url(root, page)
     ElementTree.ElementTree(sitemap).write(
@@ -143,6 +152,7 @@ def check_site(root: Path) -> None:
     titles: set[str] = set()
     descriptions: set[str] = set()
     canonicals: set[str] = set()
+    sitemap_canonicals: set[str] = set()
     required = {
         ("name", "description"),
         ("property", "og:type"),
@@ -195,9 +205,13 @@ def check_site(root: Path) -> None:
             raise RuntimeError(f"{page}: og:url does not match its canonical")
         if title in titles or description in descriptions or expected in canonicals:
             raise RuntimeError(f"{page}: title, description, and canonical must be unique")
+        if page.relative_to(root).as_posix() == "index.html" and title != SITE_NAME:
+            raise RuntimeError(f"{page}: home title must be {SITE_NAME!r}, got {title!r}")
         titles.add(title)
         descriptions.add(description)
         canonicals.add(expected)
+        if not is_error_page(root, page):
+            sitemap_canonicals.add(expected)
         scripts = re.findall(
             r'<script\b[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
             text,
@@ -212,7 +226,7 @@ def check_site(root: Path) -> None:
             raise RuntimeError(f"{page}: missing required software JSON-LD")
     sitemap = ElementTree.parse(root / "sitemap.xml")
     locations = {node.text for node in sitemap.findall(".//{*}loc")}
-    if locations != canonicals:
+    if locations != sitemap_canonicals:
         raise RuntimeError("sitemap URLs do not match generated HTML canonicals")
     robots = (root / "robots.txt").read_text(encoding="utf-8").splitlines()
     if robots != [
