@@ -1,5 +1,21 @@
 [workspace]
 name = "dseams-plumed"
+description = """\
+PLUMED Colvar DSEAMS_CAGES: the d-SEAMS topological ice score, per frame, \
+on a group of oxygen atoms read from the host MD engine. Builds the \
+mutual/union four-nearest-neighbour graphs, primitive six-membered rings \
+and seeded hexagonal/double-diamond cage assignment (nice, nmax, nclus, \
+nic, nih, nmixed), CHILL+ on the cutoff graph (chillice, chillmax, \
+chillinterfacial), six-ring census (sixrings), ion brine rejection against \
+the water assignment (nionice, nionfront, nionliq), local topology-key \
+classification and LIBRARY naming (nclasses, nnamed), ring-size SIGNATURE \
+cage counting (ncages) and guest occupancy (noccupied, nmultiple, \
+nfreeguest). Frames come from PLUMED's getPosition()/getBox(), not a \
+structure file; the only file this action reads is a plain-text LIBRARY of \
+topology keys. The linked seams-core engine optionally reads PDB/GRO/DCD \
+(chemfiles) and .con (readcon-core) for its own CLI, which this module's \
+dseams_plumed_has_chemfiles()/dseams_plumed_has_readcon() report but do \
+not use."""
 version = "0.4.1"
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-64", "osx-arm64"]

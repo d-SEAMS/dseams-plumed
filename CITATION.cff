@@ -1,6 +1,25 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below."
 title: "dseams-plumed: the d-SEAMS topological ice score as a PLUMED action"
+abstract: >-
+  DSEAMS_CAGES is a PLUMED Colvar that scores the d-SEAMS topological ice
+  state of a group of oxygen atoms every frame: the mutual/union
+  four-nearest-neighbour graphs, primitive six-membered rings and seeded
+  hexagonal/double-diamond cage assignment (nice, nmax, nclus, nic, nih,
+  nmixed), CHILL+ on the cutoff graph (chillice, chillmax,
+  chillinterfacial), the six-ring census (sixrings), ion brine rejection
+  against the water assignment (nionice, nionfront, nionliq), local
+  topology-key classification and LIBRARY naming (nclasses, nnamed),
+  ring-size SIGNATURE cage counting (ncages) and guest occupancy
+  (noccupied, nmultiple, nfreeguest). Every count carries no derivatives
+  and feeds PRINT, COMMITTOR or other PLUMED analysis actions. Atom
+  positions come from the host MD engine through PLUMED
+  (ATOMS/IONS/GUESTS); the only file this action reads is a plain-text
+  LIBRARY of topology keys. The linked seams-core engine optionally reads
+  PDB/GRO/DCD (chemfiles) and .con (readcon-core) for its own CLI and
+  front ends; this module exports dseams_plumed_has_chemfiles() and
+  dseams_plumed_has_readcon() to report that support, but does not read
+  structure files itself.
 type: software
 version: "0.4.1"
 date-released: "2026-11-17"
