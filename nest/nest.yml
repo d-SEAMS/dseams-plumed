@@ -1,4 +1,6 @@
+# [[[cog import re; v = re.search(r"version:\s*'([^']+)'", open("meson.build").read()).group(1); cog.outl("url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v%s/dseams-plumed-v%s-nest.zip" % (v, v))]]]
 url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v0.4.1/dseams-plumed-v0.4.1-nest.zip
+# [[[end]]]
 pname: d-SEAMS cage counts
 title: d-SEAMS cage counts as PLUMED collective variables
 category: methods

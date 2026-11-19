@@ -16,7 +16,9 @@ topology keys. The linked seams-core engine optionally reads PDB/GRO/DCD \
 (chemfiles) and .con (readcon-core) for its own CLI, which this module's \
 dseams_plumed_has_chemfiles()/dseams_plumed_has_readcon() report but do \
 not use."""
+# [[[cog import re; cog.outl('version = "%s"' % re.search(r"version:\s*'([^']+)'", open("meson.build").read()).group(1))]]]
 version = "0.4.1"
+# [[[end]]]
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-64", "osx-arm64"]
 authors = ["Rohit Goswami <rgoswami@ieee.org>"]
@@ -45,3 +47,27 @@ check-engine-pin = "python tests/check_engine_pin.py"
 setup = { cmd = "meson setup build --buildtype=release -Dseams-core:with_tests=false", depends-on = ["check-engine-pin"] }
 build = { cmd = "meson compile -C build", depends-on = ["setup"] }
 test = { cmd = "meson test -C build --print-errorlogs", depends-on = ["build"] }
+
+# cogapp and towncrier are release tooling, kept out of the default
+# environment so the plain build/test loop pulls nothing extra. cocogitto
+# (the `cog` binary) is not conda-forge packaged; install it with
+# `cargo install cocogitto --locked` (see
+# docs/orgmode/contributing/developer/release.org).
+# conda-forge ships cogapp for linux-64/osx-64 only (no osx-arm64 build).
+[feature.version]
+platforms = ["linux-64", "osx-64"]
+
+[feature.version.dependencies]
+cogapp = ">=3.3.0,<4"
+towncrier = ">=24,<27"
+
+[feature.version.tasks]
+# Rewrites every copy in ci/version/files.txt from meson.build's version.
+release-cog = "python -m cogapp -I ci/version -r @ci/version/files.txt"
+# Fails when a copy has drifted from meson.build without rewriting it.
+version-drift = "python -m cogapp -I ci/version --check @ci/version/files.txt"
+towncrier-draft = "towncrier build --draft"
+towncrier-build = "towncrier build --yes"
+
+[environments]
+version = { features = ["version"], no-default-feature = true }

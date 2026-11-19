@@ -1,5 +1,8 @@
 [tool.towncrier]
 name = "dseams-plumed"
+# [[[cog import re; cog.outl('version = "%s"' % re.search(r"version:\s*'([^']+)'", open("meson.build").read()).group(1))]]]
+version = "0.4.1"
+# [[[end]]]
 directory = "changelog.d"
 filename = "CHANGELOG.md"
 start_string = "<!-- towncrier release notes start -->\n"

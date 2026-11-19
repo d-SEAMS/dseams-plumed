@@ -1,0 +1,68 @@
+# Cocogitto 7+ release driver for dseams-plumed (https://docs.cocogitto.io)
+# Prepare: hand-edit and commit meson.build's version, then
+#          cog bump --version X.Y.Z   (the version just committed)
+# Hooks lockstep-bump every version copy, then towncrier builds CHANGELOG.md.
+# Publish remains tag-triggered via .github/workflows/release.yml (v*), which
+# attaches the PLUMED-NEST archive to a GitHub Release; see
+# docs/orgmode/contributing/developer/release.org.
+
+from_latest_tag = true
+# Cog 7 reads this during `cog check` and skips commits with more than one
+# parent. The CLI is `cog check --ignore-merge-commits <base>..HEAD`.
+# There is no `--from` flag (`--from-latest-tag` is a boolean and shares a
+# group with the positional range).
+ignore_merge_commits = true
+# Towncrier owns CHANGELOG.md (changelog.d/ fragments); cog still creates
+# the version commit and tag.
+disable_changelog = true
+disable_bump_commit = false
+generate_mono_repository_global_tag = true
+tag_prefix = "v"
+skip_ci = "[skip ci]"
+skip_untracked = false
+branch_whitelist = ["main"]
+
+# meson.build's project() version is the one place a person writes the
+# version by hand, the same role rgpot's root Cargo.toml
+# [workspace.package] version plays: edit that line and commit it before
+# bumping (cog refuses to bump with any uncommitted change staged).
+# `cog bump` then runs these two hooks and nothing else, exactly as
+# rgpot's cog.toml does for Cargo.toml: cogapp regenerates every copy
+# listed in ci/version/files.txt through a one-line snippet inside each
+# copy (no helper script, no -D flag needed since meson.build is plain
+# text), then towncrier curates CHANGELOG.md from changelog.d/. No
+# version-writing or drift-checking script of any kind, and no script
+# call from either hook.
+pre_bump_hooks = [
+    "python3 -m cogapp -I ci/version -r @ci/version/files.txt",
+    "towncrier build --yes --version {{version}}",
+]
+
+post_bump_hooks = [
+    # Show the prepared state; CI publishes on tag push (nothing here pushes).
+    "git --no-pager show --stat HEAD",
+    "echo \"Prepared v{{version}}. Push the version commit and tag 'v{{version}}' to run release.yml.\"",
+    "echo \"release.yml builds the PLUMED-NEST archive and attaches it to a draft GitHub Release, then publishes it.\"",
+    "echo \"Optional: git tag -s v{{version}} if you re-sign; prefer cog + signed commits/tags in your local git config.\"",
+]
+
+[commit_types]
+feat     = { changelog_title = "Features" }
+fix      = { changelog_title = "Bug Fixes" }
+perf     = { changelog_title = "Performance" }
+refactor = { changelog_title = "Refactoring" }
+docs     = { changelog_title = "Documentation" }
+test     = { changelog_title = "Tests" }
+build    = { changelog_title = "Build System" }
+ci       = { changelog_title = "CI" }
+chore    = { changelog_title = "Miscellaneous" }
+style    = { changelog_title = "Style" }
+revert   = { changelog_title = "Reverts" }
+
+[changelog]
+path = "CHANGELOG.md"
+authors = [{ username = "HaoZeke", signature = "Rohit Goswami" }]
+
+[git_hooks]
+
+[bump_profiles]

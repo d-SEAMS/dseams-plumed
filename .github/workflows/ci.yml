@@ -18,13 +18,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Engine pin is the seams-core tag
         run: python3 tests/check_engine_pin.py
-      - name: Version copies agree with meson.build
-        run: python3 scripts/project_version.py --check
       - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
         with:
-          environments: default
+          environments: default version
           cache-key: pixi-default-
           locked: false
+      - name: Version copies agree with meson.build
+        run: pixi run -e version python -m cogapp -I ci/version --check @ci/version/files.txt
       - name: Configure with chemfiles and readcon-core explicitly enabled
         run: |
           pixi run meson setup build --buildtype=release \
@@ -61,8 +61,12 @@ jobs:
           rm nest/dseams_plumed.generated.cpp
           "$PWD/.test-env/bin/python" scripts/build_nest_zip.py \
             --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
-          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
-          python3 scripts/project_version.py --check --archive "$ARCHIVE"
+          VERSION="$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" meson.build)"
+          ARCHIVE="dist/dseams-plumed-v${VERSION}-nest.zip"
+          test -f "$ARCHIVE"
+          EXPECTED_MD5="$(sed -n 's/^md5: //p' nest/nest.yml)"
+          ACTUAL_MD5="$(md5sum "$ARCHIVE" | cut -d' ' -f1)"
+          test "$ACTUAL_MD5" = "$EXPECTED_MD5"
           MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p "$PWD/.test-env" \
             python tests/nest_zip_check.py plumed "$ARCHIVE"
 
@@ -91,5 +95,6 @@ jobs:
           PATH="$PWD/.test-env/bin:$PWD/.plumed-libcxx/bin:$PATH"
           python3 scripts/build_nest_zip.py \
             --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
-          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          VERSION="$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" meson.build)"
+          ARCHIVE="dist/dseams-plumed-v${VERSION}-nest.zip"
           python3 tests/nest_zip_check.py plumed "$ARCHIVE"

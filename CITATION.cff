@@ -21,7 +21,9 @@ abstract: >-
   dseams_plumed_has_readcon() to report that support, but does not read
   structure files itself.
 type: software
+# [[[cog import re; cog.outl('version: "%s"' % re.search(r"version:\s*'([^']+)'", open("meson.build").read()).group(1))]]]
 version: "0.4.1"
+# [[[end]]]
 date-released: "2026-11-17"
 license: MIT
 repository-code: "https://github.com/d-SEAMS/dseams-plumed"
