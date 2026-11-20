@@ -1,4 +1,6 @@
+# [[[cog import re; v = re.search(r"version:\s*'([^']+)'", open("meson.build").read()).group(1); cog.outl("url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v%s/dseams-plumed-v%s-nest.zip" % (v, v))]]]
 url: https://github.com/d-SEAMS/dseams-plumed/releases/download/v0.4.1/dseams-plumed-v0.4.1-nest.zip
+# [[[end]]]
 pname: d-SEAMS cage counts
 title: d-SEAMS cage counts as PLUMED collective variables
 category: methods
@@ -26,4 +28,4 @@ instructions: >
   ICE, BRINE, and HYDRATE reference outputs. ATOMS is one oxygen per
   water, IONS one atom per ion, and GUESTS one atom per guest. The
   methods paper is 10.1021/acs.jcim.0c00031.
-md5: f853d7b088b0d934aa73bd64cc7963ad
+md5: d1849ed11d07e1bf54721614a3349104

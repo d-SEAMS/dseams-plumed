@@ -46,6 +46,44 @@ accepted when =pkg-config seams-core= reports 2.14.0 or newer. The
 setup passes =-Dseams-core:with_tests=false= so =meson test= runs this
 module's driver tests. The engine's own suite stays in seams-core.
 
+** Engine readers and the feature query
+
+=DSEAMS_CAGES= takes every frame from the MD engine through PLUMED's
+=ATOMS=/=IONS=/=GUESTS= (=getPosition()=/=getBox()=); it never opens a
+structure file itself. The one file it reads is =LIBRARY=, a plain-text
+topology key library (=std::ifstream=), not a molecular structure
+format.
+
+The built =libdseams_plumed.so= exports two =extern "C"= functions
+reporting whether the linked seams-core engine was built with its
+optional readers (PDB/GRO/DCD through
+[[https://chemfiles.org][chemfiles]], =.con= through
+[[https://github.com/lode-org/readcon-core][readcon-core]]).
+=tests/feature_check.py= checks those two flags and nothing about file
+contents:
+
+- =bool dseams_plumed_has_chemfiles()=
+- =bool dseams_plumed_has_readcon()=
+
+=DSEAMS_CAGES= logs the same two values once at setup.
+
+When this build uses the seams-core wrap and both readers are compiled
+in, Meson also registers =reader_fail_pdb=, =reader_fail_gro=,
+=reader_fail_dcd= and =reader_fail_con=. Each runs the engine CLI
+=seams read= on three paths of that format: a path that does not exist,
+an empty file, and a file with mode 000. Each of those runs must exit
+2, write nothing to stdout, and print a stderr line =cannot read <path>=.
+That is the whole of what those four tests check. They do not read a
+file that contains atoms. =ci.yml= configures with
+=-Dseams-core:with_chemfiles=enabled -Dseams-core:with_readcon=enabled=,
+so those four tests run there.
+
+A build without chemfiles or readcon-core (for example
+=-Dseams-core:with_chemfiles=disabled -Dseams-core:with_readcon=disabled=)
+does not register those four tests. It still configures, builds, and
+passes the other five (the four =plumed driver= checks and
+=feature_query=); only the reported flag values change to =no=.
+
 With pixi (plumed, compilers, meson):
 
 #+begin_src bash

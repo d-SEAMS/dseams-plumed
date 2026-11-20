@@ -15,6 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: CHANGELOG has a heading for this tag
+        run: grep -F "## [${GITHUB_REF_NAME#v}]" CHANGELOG.md
+      - uses: prefix-dev/setup-pixi@f00437f565399d418b0acc85936d12c1fb668347 # v0.10.1
+        with:
+          environments: version
+          cache-key: pixi-version-
+          locked: false
+      - name: Regenerated version copies match the commit
+        run: |
+          pixi run -e version python -m cogapp -I ci/version -r @ci/version/files.txt
+          git diff --exit-code
       - uses: ./.github/actions/test-env
         with:
           toolchain: gcc
@@ -30,15 +41,20 @@ jobs:
         run: |
           "$PWD/.test-env/bin/python" scripts/build_nest_zip.py \
             --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
-          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
-          python3 scripts/project_version.py --check --tag "$GITHUB_REF_NAME" --archive "$ARCHIVE"
+          VERSION="$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" meson.build)"
+          ARCHIVE="dist/dseams-plumed-v${VERSION}-nest.zip"
+          test "$GITHUB_REF_NAME" = "v${VERSION}"
+          EXPECTED_MD5="$(sed -n 's/^md5: //p' nest/nest.yml)"
+          ACTUAL_MD5="$(md5sum "$ARCHIVE" | cut -d' ' -f1)"
+          test "$ACTUAL_MD5" = "$EXPECTED_MD5"
           MAMBA_ROOT_PREFIX="$RUNNER_TEMP/mamba" .tools/micromamba run -p "$PWD/.test-env" \
             python tests/nest_zip_check.py plumed "$ARCHIVE"
       - name: Create a draft release and attach the verified archive
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          VERSION="$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" meson.build)"
+          ARCHIVE="dist/dseams-plumed-v${VERSION}-nest.zip"
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
             --title "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" "$ARCHIVE"
@@ -50,7 +66,8 @@ jobs:
         run: gh release edit "$GITHUB_REF_NAME" --draft=false
       - name: The published url serves the verified archive
         run: |
-          ARCHIVE="dist/dseams-plumed-v$(python3 scripts/project_version.py)-nest.zip"
+          VERSION="$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" meson.build)"
+          ARCHIVE="dist/dseams-plumed-v${VERSION}-nest.zip"
           url="$(sed -n 's/^url: //p' nest/nest.yml)"
           curl -fsSL -o published.zip "$url"
           cmp published.zip "$ARCHIVE"

@@ -1,0 +1,119 @@
+#+TITLE: Developer Guide
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Developer Guide
+
+This section covers the day-to-day development workflow for
+=dseams-plumed=, the d-SEAMS topological ice score as a PLUMED action. It
+mirrors the layout of
+[[https://github.com/OmniPotentRPC/rgpot][rgpot]]'s developer guide
+(=docs/orgmode/contributing/developer/=), adapted to this project's Meson
+and pixi build.
+
+These pages are developer and release documentation, not part of the
+reader-facing site at https://plumed.dseams.info/ (=docs/*.md=, built by
+=mkdocs=): =mkdocs.yml= does not include =docs/orgmode/=. The reader pages
+cover keywords, components and examples only; build, test and release
+process live here instead.
+
+** Environment Setup
+
+All development is managed through [[https://pixi.sh][pixi]].
+Install it first, then:
+
+#+attr_dseams: syntax installs the pixi environment and verifies the engine pin
+#+begin_src bash
+pixi install          # default environment: plumed, compilers, meson, the engine deps
+pixi run setup         # meson setup build/, after check-engine-pin
+pixi run build         # meson compile -C build
+pixi run test          # meson test -C build --print-errorlogs
+#+end_src
+
+Environments declared in =pixi.toml=:
+
+| Environment | Purpose |
+|-------------+---------|
+| /(default)/ | plumed, compilers, Meson, Ninja, Rust/cargo, Eigen, BLAS/LAPACK, Highway, chemfiles, pkg-config |
+| =version= | cogapp and towncrier for the release version copies (=ci/version/files.txt=); linux-64/osx-64 only, no conda-forge osx-arm64 cogapp build |
+
+=version= has no default feature (=no-default-feature = true=), so it does
+not also pull the default environment's plumed/compilers/meson stack.
+
+** Common Tasks
+
+Tasks run with =pixi run <task>= (=pixi r= for short). A task that belongs
+to a feature needs that environment, as in =pixi r -e version release-cog=.
+
+| Task | Environment | Description |
+|------+-------------+-------------|
+| =check-engine-pin= | default | =tests/check_engine_pin.py=: the seams-core wrap revision is the pinned tag |
+| =setup= / =build= / =test= | default | Meson setup, compile, the four =plumed driver= checks, =feature_query=, and the four =seams read= failure checks when the wrap has both readers |
+| =release-cog= | =version= | Regenerate every version copy in =ci/version/files.txt= from =meson.build= with cogapp |
+| =version-drift= | =version= | Check those copies without rewriting them (fails on drift) |
+| =towncrier-draft= | =version= | Preview release notes (=towncrier build --draft=; dry run) |
+| =towncrier-build= | =version= | Write release notes into =CHANGELOG.md= and clear =changelog.d/= |
+| Cut release | none | On =main=: hand-edit and commit =meson.build='s version, then =cog bump --version X.Y.Z= (needs =cog= 7+, installed separately), then push; see [[file:release.org][release.org]] |
+
+Other project-specific checks, not pixi tasks:
+
+| Check | Command | Purpose |
+|-------+---------+---------|
+| Version copies | =pixi run -e version version-drift= | =pixi.toml=, =CITATION.cff=, =towncrier.toml=, =nest/nest.yml='s =url= agree with =meson.build= |
+| NEST source regen | =python3 scripts/generate_nest_source.py --seams-root <seams-core> --output <path>= then =cmp= with =nest/dseams_plumed.cpp= | the committed archive source is reproducible from the pinned engine tag plus =src/DseamsCages.cpp= |
+| NEST archive build | =python3 scripts/build_nest_zip.py --seams-root <seams-core> --eigen-root <eigen-3.4.0>= | builds =dist/dseams-plumed-vX.Y.Z-nest.zip= (also re-runs the source regen check) |
+| NEST archive check | =python3 tests/nest_zip_check.py plumed <archive>= | extracts the archive, runs the PLUMED-NEST syntax check and the full =plumed driver= example, and diffs ICE/BRINE/HYDRATE against =nest/reference/= |
+
+See [[file:testing.org][Testing]] for the full matrix (engine-reader builds,
+the NEST archive, both toolchains CI uses).
+
+** Regenerating the PLUMED-NEST Archive Source
+
+=nest/dseams_plumed.cpp= is generated, not hand-edited: it amalgamates the
+pinned seams-core engine sources (a fixed list of =.cpp= files in
+=scripts/generate_nest_source.py=; trajectory I/O and the optional shape
+helper are deliberately left out, since the bundled action never calls
+them) with =src/DseamsCages.cpp=. After changing either the action or the
+amalgamator:
+
+#+attr_dseams: syntax regenerates and diffs the NEST source against a pinned seams-core checkout
+#+begin_src bash
+git clone --depth 1 --branch v2.14.0 https://github.com/d-SEAMS/seams-core.git .sources/seams-core
+python3 scripts/generate_nest_source.py --seams-root .sources/seams-core \
+  --output /tmp/dseams_plumed.generated.cpp
+diff -u nest/dseams_plumed.cpp /tmp/dseams_plumed.generated.cpp
+cp /tmp/dseams_plumed.generated.cpp nest/dseams_plumed.cpp   # if they differ
+#+end_src
+
+The =nest-archive= CI job runs the same regeneration and =cmp='s it against
+the committed file, so a stale =nest/dseams_plumed.cpp= fails CI rather than
+shipping silently out of date.
+
+** Git hooks
+
+There is no committed hook runner (no =prek.toml= / =.pre-commit-config.yaml=
+in this repository). Before pushing, run what CI runs:
+
+#+attr_dseams: syntax the checks ci.yml's build-test job runs, in order
+#+begin_src bash
+python3 tests/check_engine_pin.py
+pixi run -e version python -m cogapp -I ci/version --check @ci/version/files.txt
+# pull requests only; ci.yml checks out full history first
+git fetch origin main
+pixi run -e version towncrier check --compare-with origin/main
+pixi run setup
+pixi run build
+pixi run test
+python3 tests/feature_check.py "$(pixi run which plumed)" "$PWD/build/libdseams_plumed.so" \
+  --require-chemfiles --require-readcon
+#+end_src
+
+#+begin_export rst
+.. toctree::
+   :maxdepth: 2
+   :caption: Details
+
+   testing
+   release
+   faq
+#+end_export

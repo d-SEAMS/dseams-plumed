@@ -1,7 +1,28 @@
 build/
+build-*/
 dist/
 .pixi/
+pixi.lock
 subprojects/seams-core/
 subprojects/packagecache/
+subprojects/.wraplock
+# seams-core's own with_chemfiles/with_readcon wraps (gpulite, linkcell,
+# minimage, readcon-core, readcon-db, vesin): meson resolves every
+# subproject-of-a-subproject against this top-level subprojects/, copying
+# the wrap file here and fetching its source the first time `meson setup`
+# or `pixi run setup` runs. Only subprojects/seams-core.wrap is this
+# project's own pin.
+subprojects/gpulite.wrap
+subprojects/gpulite/
+subprojects/linkcell.wrap
+subprojects/linkcell/
+subprojects/minimage.wrap
+subprojects/minimage/
+subprojects/readcon-core.wrap
+subprojects/readcon-core/
+subprojects/readcon-db.wrap
+subprojects/readcon-db/
+subprojects/vesin.wrap
+subprojects/vesin/
 __pycache__/
 site/

@@ -12,9 +12,22 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from project_version import archive_name, read_version
-
 ZIP_TIME = (2026, 1, 1, 0, 0, 0)
+
+VERSION_PATTERN = re.compile(r"^\s*version:\s*'([^']+)'", re.MULTILINE)
+
+
+def read_version(root: Path) -> str:
+    """meson.build's project() version: the one place a person writes it."""
+    text = (root / "meson.build").read_text()
+    match = VERSION_PATTERN.search(text)
+    if match is None:
+        raise SystemExit("meson.build declares no project version")
+    return match.group(1)
+
+
+def archive_name(version: str) -> str:
+    return f"dseams-plumed-v{version}-nest.zip"
 
 EIGEN_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
 EIGEN_EXTERNAL = {"mkl_lapacke.h", "lapacke_config.h"}

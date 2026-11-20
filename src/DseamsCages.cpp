@@ -22,6 +22,42 @@
 #include <string>
 #include <vector>
 
+//! Feature query for the linked seams-core engine.
+//!
+//! DSEAMS_CAGES itself never opens a structure file: frames come from the
+//! MD engine through PLUMED's own getPosition()/getBox(), and the only file
+//! this action reads is a plain-text LIBRARY of topology keys (std::ifstream,
+//! not a molecular structure format). seams-core's chemfiles (PDB/GRO/DCD)
+//! and readcon-core (.con) readers are therefore unused here, exactly as
+//! scripts/generate_nest_source.py notes when it drops that code from the
+//! PLUMED-NEST archive.
+//!
+//! The meson build still links the full seams-core engine (dependencies:
+//! [yds_dep] in meson.build), which hands this translation unit the same
+//! -DSEAMS_HAS_CHEMFILES / -DSEAMS_HAS_READCON compile_args it built
+//! libyodaLib with (subprojects/seams-core/src/meson.build, yds_dep). These
+//! two exported C functions let a caller that only has the built
+//! libdseams_plumed.so (dlopen + dlsym, no PLUMED process required) ask
+//! which readers that linked engine supports, the way a library exposes
+//! has_chemfiles()/has_readcon() feature flags. See README.org, Install.
+extern "C" {
+bool dseams_plumed_has_chemfiles() {
+#ifdef SEAMS_HAS_CHEMFILES
+  return true;
+#else
+  return false;
+#endif
+}
+
+bool dseams_plumed_has_readcon() {
+#ifdef SEAMS_HAS_READCON
+  return true;
+#else
+  return false;
+#endif
+}
+}
+
 namespace PLMD {
 namespace colvar {
 
@@ -247,6 +283,10 @@ DseamsCages::DseamsCages(const ActionOptions &ao) : PLUMED_COLVAR_INIT(ao) {
     }
   }
   log.printf("  counts carry no derivatives; use them for PRINT, COMMITTOR and analysis\n");
+  log.printf("  linked engine readers: chemfiles=%s readcon=%s (unused: frames come from "
+             "this MD engine, not a structure file)\n",
+             dseams_plumed_has_chemfiles() ? "yes" : "no",
+             dseams_plumed_has_readcon() ? "yes" : "no");
 }
 
 namespace {

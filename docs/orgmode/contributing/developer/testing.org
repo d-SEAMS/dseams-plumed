@@ -1,0 +1,174 @@
+#+TITLE: Testing
+#+OPTIONS: toc:nil todo:nil num:nil author:nil title:nil
+#+STARTUP: content
+
+* Testing
+
+** Driver tests (Meson)
+
+#+attr_dseams: syntax full build and test run
+#+begin_src bash
+pixi run setup
+pixi run build
+pixi run test
+#+end_src
+
+Or directly, without pixi (plumed 2.9+ on =PATH=):
+
+#+attr_dseams: syntax full build and test run
+#+begin_src bash
+meson setup build --buildtype=release -Dseams-core:with_tests=false
+meson compile -C build
+meson test -C build --print-errorlogs
+#+end_src
+
+=-Dseams-core:with_tests=false= keeps =meson test= to this module's
+checks; the engine's own suite stays in seams-core. With both optional
+readers compiled into the wrap that is four =plumed driver= checks,
+=feature_query=, and four =seams read= failure checks
+(=reader_fail_pdb=, =reader_fail_gro=, =reader_fail_dcd=,
+=reader_fail_con=). A build that disables both readers does not register
+the four failure checks, so it runs the other five. See the reader-facing
+[[https://plumed.dseams.info/tests/][Driver tests]] page for what each of
+=driver_nucleation=, =driver_ions=, =driver_guests= and =driver_library=
+checks and how to run them against your own trajectory.
+
+*** Feature query (=feature_query=)
+
+=tests/feature_check.py= is a developer/CI check of the feature flags,
+not a structure-file read: =DSEAMS_CAGES= never opens a structure file
+(frames come from the MD engine through =getPosition()=/=getBox()=).
+The missing-file checks are =reader_fail_*= below. This script
+=dlopen=/=dlsym=\s the two
+=extern "C"= functions =libdseams_plumed.so= exports
+(=dseams_plumed_has_chemfiles=, =dseams_plumed_has_readcon=,
+=src/DseamsCages.cpp=) and checks they report what the linked seams-core
+engine was actually built with. It is registered unconditionally (no
+engine-dependent skip): a build without chemfiles/readcon-core still
+builds and passes this test, only the printed values change to =no=.
+
+#+attr_dseams: syntax report the feature query without requiring either reader
+#+begin_src bash
+pixi run python tests/feature_check.py \
+  "$(pixi run which plumed)" "$PWD/build/libdseams_plumed.so"
+#+end_src
+
+With =--require-chemfiles=/=--require-readcon= the script fails (does not
+skip) when that reader is absent. =ci.yml='s =build-test= job configures
+with =-Dseams-core:with_chemfiles=enabled -Dseams-core:with_readcon=enabled=
+explicitly, a deliberate configuration rather than relying on
+auto-detection, and runs it that way so the assertion cannot pass
+silently:
+
+#+attr_dseams: syntax the strict check ci.yml's build-test job runs
+#+begin_src bash
+pixi run python tests/feature_check.py \
+  "$(pixi run which plumed)" "$PWD/build/libdseams_plumed.so" \
+  --require-chemfiles --require-readcon
+#+end_src
+
+*** Missing and unreadable structure files (=reader_fail_*=)
+
+Registered only when this build uses the seams-core wrap and both
+readers are compiled in (=seams_has_structure_readers= in the engine's
+=meson.build=, which is what CI's explicit
+=-Dseams-core:with_chemfiles=enabled -Dseams-core:with_readcon=enabled=
+produces). Each test runs =tests/reader_fail_check.py= with the wrap's
+=seams= binary and one extension (=pdb=, =gro=, =dcd=, =con=). The script
+runs =seams read= on a path that does not exist, an empty file, and a
+file with mode 000. Each of those twelve runs must exit 2, write nothing
+to stdout, and print a stderr line =cannot read <path>=. The tests do
+not open a file that contains atoms, and they do not skip.
+
+#+attr_dseams: syntax one format, the same check meson runs
+#+begin_src bash
+pixi run python tests/reader_fail_check.py \
+  "$PWD/build/subprojects/seams-core/seams" pdb
+#+end_src
+
+** Building without the optional engine readers
+
+The build must still succeed, with only =LAMMPS=/XYZ-style live positions
+from the MD engine, when seams-core's optional chemfiles and readcon-core
+readers are unavailable (this module never calls either, so nothing about
+=DSEAMS_CAGES= itself depends on them):
+
+#+attr_dseams: syntax configure, build and test with both optional readers disabled
+#+begin_src bash
+meson setup build-noreaders --buildtype=release \
+  -Dseams-core:with_tests=false \
+  -Dseams-core:with_chemfiles=disabled \
+  -Dseams-core:with_readcon=disabled
+meson compile -C build-noreaders
+meson test -C build-noreaders --print-errorlogs
+python3 tests/feature_check.py \
+  "$(pixi run which plumed)" "$PWD/build-noreaders/libdseams_plumed.so"
+# -> has_chemfiles=False has_readcon=False; the four reader_fail_* tests
+# are not registered, and the other five still pass.
+#+end_src
+
+The =seams-core= summary printed by =meson setup= reports
+"PDB/GRO/DCD readers (chemfiles)" and "=.con= reader (readcon-core)" as
+=NO= in that configuration, and =YES= in the default one; see REPORT.md for
+the paired compiler command-line evidence
+(=-DSEAMS_HAS_CHEMFILES=1=/=-DSEAMS_HAS_READCON=1= present or absent on the
+=DseamsCages.cpp= compile line).
+
+** The PLUMED-NEST archive
+
+Two CI jobs build and run the self-contained NEST archive, on two
+toolchains:
+
+#+attr_dseams: syntax full build and test run, gcc toolchain
+#+begin_src bash
+git clone --depth 1 --branch v2.14.0 https://github.com/d-SEAMS/seams-core.git .sources/seams-core
+curl -fsSL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.bz2 -o .sources/eigen.tar.bz2
+tar -xjf .sources/eigen.tar.bz2 -C .sources
+python3 scripts/generate_nest_source.py --seams-root .sources/seams-core \
+  --output nest/dseams_plumed.generated.cpp
+cmp nest/dseams_plumed.cpp nest/dseams_plumed.generated.cpp
+rm nest/dseams_plumed.generated.cpp
+python3 scripts/build_nest_zip.py --seams-root .sources/seams-core --eigen-root .sources/eigen-3.4.0
+VERSION="$(sed -n "s/^[[:space:]]*version:[[:space:]]*'\([^']*\)'.*/\1/p" meson.build)"
+ARCHIVE="dist/dseams-plumed-v${VERSION}-nest.zip"
+python3 tests/nest_zip_check.py plumed "$ARCHIVE"
+#+end_src
+
+=nest-archive-libcxx= repeats the archive build and check against a PLUMED
+built from source with clang and libc++
+(=tests/build_plumed_libcxx.sh=), so the bundled source's portability
+across standard libraries is covered on every push, not only at release.
+
+=nest_zip_check.py= runs the PLUMED-NEST syntax check
+(=plumed driver --natoms 100000 --parse-only ...=), then the full example
+(=plumed driver --plumed plumed.dat --ixyz frame.xyz --length-units A=),
+and diffs =ICE=, =BRINE= and =HYDRATE= against =nest/reference/=.
+
+** Version consistency
+
+#+attr_dseams: syntax check every version copy against meson.build
+#+begin_src bash
+pixi run -e version version-drift
+# or directly:
+python -m cogapp -I ci/version --check @ci/version/files.txt
+#+end_src
+
+This checks every cogapp-marked copy in =ci/version/files.txt= (currently
+=pixi.toml=, =CITATION.cff=, =towncrier.toml= and =nest/nest.yml='s =url=)
+by regeneration-and-diff against =meson.build=. =nest/nest.yml='s =md5=
+and =CHANGELOG.md='s section are not cogapp copies (both depend on the
+*built* archive); see [[file:release.org][release.org]] for how those are
+checked instead.
+
+** Documentation build
+
+#+attr_dseams: syntax the docs.yml checks, run locally
+#+begin_src bash
+pip install -r docs/requirements.txt
+mkdocs build --strict
+python scripts/seo.py --check site
+#+end_src
+
+=docs/orgmode/= (this guide) is not part of that build: there is no Sphinx
+or Org export pipeline wired up for it in this repository, unlike rgpot's
+=pixi r -e docs docbld=. These pages are read directly from the repository.

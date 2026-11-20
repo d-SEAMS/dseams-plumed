@@ -6,7 +6,8 @@ project('dseams-plumed', 'cpp',
 # The engine: an installed seams-core (pkg-config seams-core) at 2.14.0 or
 # newer, or the wrap. The wrap revision is the tag v2.14.0.
 yds_dep = dependency('seams-core', version: '>=2.14.0', required: false)
-if not yds_dep.found()
+seams_from_wrap = not yds_dep.found()
+if seams_from_wrap
   yds_dep = dependency('seams-core', version: '>=2.14.0',
     fallback: ['seams-core', 'yds_dep'])
 endif
@@ -48,6 +49,19 @@ if pymod.found()
     args: [meson.project_source_root() / 'tests' / 'guest_check.py',
            plumed.full_path(), mod.full_path()],
     timeout: 600)
+  # Reports dseams_plumed_has_chemfiles()/has_readcon() every build, whether
+  # or not the engine has those optional readers: a build without them must
+  # still succeed (and this test with it), only the printed values differ.
+  # ci.yml's build-test job configures with -Dseams-core:with_chemfiles=enabled
+  # -Dseams-core:with_readcon=enabled explicitly (a deliberate configuration,
+  # not auto-detection), so it additionally runs this script with
+  # --require-chemfiles --require-readcon, which fails (not skips) if either
+  # is unexpectedly missing there.
+  test('feature_query',
+    pymod,
+    args: [meson.project_source_root() / 'tests' / 'feature_check.py',
+           plumed.full_path(), mod.full_path()],
+    timeout: 60)
   # the library check needs the engine CLI to write the keys. An
   # installed seams is used when it is on PATH; otherwise the CLI the
   # wrap just built.
@@ -61,5 +75,25 @@ if pymod.found()
       args: [meson.project_source_root() / 'tests' / 'library_check.py',
              plumed.full_path(), mod.full_path(), seams_cli.full_path()],
       timeout: 600)
+    # `seams read` of a missing or unreadable PDB, GRO, DCD, or CON file
+    # exits 2 with `cannot read <path>` only when those readers are in the
+    # engine. Without them the CLI throws "not in this build" instead, so
+    # these four tests are registered only for a wrap build that has both.
+    # A build with the readers disabled still passes every test it
+    # registers (the four drivers and feature_query). CI enables both.
+    # An installed engine is not the patched CLI this test drives.
+    engine_readers = false
+    if seams_from_wrap
+      engine_readers = subproject('seams-core').get_variable('seams_has_structure_readers')
+    endif
+    if engine_readers
+      foreach ext : ['pdb', 'gro', 'dcd', 'con']
+        test('reader_fail_' + ext,
+          pymod,
+          args: [meson.project_source_root() / 'tests' / 'reader_fail_check.py',
+                 seams_cli.full_path(), ext],
+          timeout: 60)
+      endforeach
+    endif
   endif
 endif
