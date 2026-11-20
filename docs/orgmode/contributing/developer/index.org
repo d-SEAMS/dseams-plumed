@@ -48,7 +48,7 @@ to a feature needs that environment, as in =pixi r -e version release-cog=.
 | Task | Environment | Description |
 |------+-------------+-------------|
 | =check-engine-pin= | default | =tests/check_engine_pin.py=: the seams-core wrap revision is the pinned tag |
-| =setup= / =build= / =test= | default | Meson setup, compile, and the four =plumed driver= checks plus =feature_query= |
+| =setup= / =build= / =test= | default | Meson setup, compile, the four =plumed driver= checks, =feature_query=, and the four =seams read= failure checks when the wrap has both readers |
 | =release-cog= | =version= | Regenerate every version copy in =ci/version/files.txt= from =meson.build= with cogapp |
 | =version-drift= | =version= | Check those copies without rewriting them (fails on drift) |
 | =towncrier-draft= | =version= | Preview release notes (=towncrier build --draft=; dry run) |

@@ -22,18 +22,24 @@ meson compile -C build
 meson test -C build --print-errorlogs
 #+end_src
 
-=-Dseams-core:with_tests=false= keeps =meson test= to this module's five
-checks; the engine's own suite stays in seams-core. See the reader-facing
+=-Dseams-core:with_tests=false= keeps =meson test= to this module's
+checks; the engine's own suite stays in seams-core. With both optional
+readers compiled into the wrap that is four =plumed driver= checks,
+=feature_query=, and four =seams read= failure checks
+(=reader_fail_pdb=, =reader_fail_gro=, =reader_fail_dcd=,
+=reader_fail_con=). A build that disables both readers does not register
+the four failure checks, so it runs the other five. See the reader-facing
 [[https://plumed.dseams.info/tests/][Driver tests]] page for what each of
 =driver_nucleation=, =driver_ions=, =driver_guests= and =driver_library=
 checks and how to run them against your own trajectory.
 
 *** Feature query (=feature_query=)
 
-=tests/feature_check.py= is a developer/CI check, not a structure-reader
-test: =DSEAMS_CAGES= never opens a structure file (frames come from the MD
-engine through =getPosition()=/=getBox()=), so there is no =.con=, PDB or
-GRO read to exercise here. It instead =dlopen=/=dlsym=\s the two
+=tests/feature_check.py= is a developer/CI check of the feature flags,
+not a structure-file read: =DSEAMS_CAGES= never opens a structure file
+(frames come from the MD engine through =getPosition()=/=getBox()=).
+The missing-file checks are =reader_fail_*= below. This script
+=dlopen=/=dlsym=\s the two
 =extern "C"= functions =libdseams_plumed.so= exports
 (=dseams_plumed_has_chemfiles=, =dseams_plumed_has_readcon=,
 =src/DseamsCages.cpp=) and checks they report what the linked seams-core
@@ -61,6 +67,25 @@ pixi run python tests/feature_check.py \
   --require-chemfiles --require-readcon
 #+end_src
 
+*** Missing and unreadable structure files (=reader_fail_*=)
+
+Registered only when this build uses the seams-core wrap and both
+readers are compiled in (=seams_has_structure_readers= in the engine's
+=meson.build=, which is what CI's explicit
+=-Dseams-core:with_chemfiles=enabled -Dseams-core:with_readcon=enabled=
+produces). Each test runs =tests/reader_fail_check.py= with the wrap's
+=seams= binary and one extension (=pdb=, =gro=, =dcd=, =con=). The script
+runs =seams read= on a path that does not exist, an empty file, and a
+file with mode 000. Each of those twelve runs must exit 2, write nothing
+to stdout, and print a stderr line =cannot read <path>=. The tests do
+not open a file that contains atoms, and they do not skip.
+
+#+attr_dseams: syntax one format, the same check meson runs
+#+begin_src bash
+pixi run python tests/reader_fail_check.py \
+  "$PWD/build/subprojects/seams-core/seams" pdb
+#+end_src
+
 ** Building without the optional engine readers
 
 The build must still succeed, with only =LAMMPS=/XYZ-style live positions
@@ -78,7 +103,8 @@ meson compile -C build-noreaders
 meson test -C build-noreaders --print-errorlogs
 python3 tests/feature_check.py \
   "$(pixi run which plumed)" "$PWD/build-noreaders/libdseams_plumed.so"
-# -> has_chemfiles=False has_readcon=False; all five tests still pass.
+# -> has_chemfiles=False has_readcon=False; the four reader_fail_* tests
+# are not registered, and the other five still pass.
 #+end_src
 
 The =seams-core= summary printed by =meson setup= reports

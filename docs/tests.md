@@ -1,7 +1,9 @@
 # Driver tests
 
 Meson registers four `plumed driver` checks that exercise every mode of
-`DSEAMS_CAGES`. Run the full suite after building:
+`DSEAMS_CAGES`, plus `feature_query`. When the build uses the seams-core
+wrap with both structure readers, it also registers four `seams read`
+failure checks. Run the full suite after building:
 
 ```bash
 pixi run test
@@ -66,8 +68,7 @@ with `LIBRARY=ic.keys,ic2.keys`, and checks `nclasses = 1` and
 ### Feature query (`feature_query`)
 
 `DSEAMS_CAGES` never opens a structure file (frames come from the MD
-engine), so there is nothing here to read a `.con`, PDB or GRO file
-through. `tests/feature_check.py` instead checks the two `extern "C"`
+engine). `tests/feature_check.py` checks the two `extern "C"`
 functions the built `libdseams_plumed.so` exports, reporting whether the
 linked `seams-core` engine was built with its optional
 [chemfiles](https://chemfiles.org) (PDB/GRO/DCD) and
@@ -87,6 +88,20 @@ configures with `-Dseams-core:with_chemfiles=enabled
 -Dseams-core:with_readcon=enabled` explicitly (a deliberate configuration,
 not relying on auto-detection), so it runs the script that way to make
 sure the assertion cannot pass silently.
+
+### Missing and unreadable structure files (`reader_fail_pdb`, `reader_fail_gro`, `reader_fail_dcd`, `reader_fail_con`)
+
+Registered only when this build uses the seams-core wrap and both readers
+are compiled in. `tests/reader_fail_check.py` runs `seams read` on a
+nonexistent file, an empty file, and a mode-000 file for one extension
+(`pdb`, `gro`, `dcd`, or `con`). Each run must exit 2, write nothing to
+stdout, and print a stderr line `cannot read <path>`. The tests do not
+read a file that contains atoms.
+
+```bash
+pixi run python tests/reader_fail_check.py \
+  "$PWD/build/subprojects/seams-core/seams" pdb
+```
 
 ## Running `plumed driver` on your own xyz trajectory
 
