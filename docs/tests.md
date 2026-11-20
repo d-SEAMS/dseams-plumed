@@ -1,9 +1,12 @@
 # Driver tests
 
 Meson registers four `plumed driver` checks that exercise every mode of
-`DSEAMS_CAGES`, plus `feature_query`. When the build uses the seams-core
-wrap with both structure readers, it also registers four `seams read`
-failure checks. Run the full suite after building:
+`DSEAMS_CAGES`, and `feature_query`. When this build uses the seams-core
+wrap and both readers are compiled in, Meson also registers
+`reader_fail_pdb`, `reader_fail_gro`, `reader_fail_dcd`, and
+`reader_fail_con`. Each runs `seams read` on a nonexistent path, an empty
+file, and a mode-000 file, and requires exit 2 with a stderr line
+`cannot read <path>`. Run the checks Meson registered:
 
 ```bash
 pixi run test
