@@ -4,6 +4,9 @@ url = https://github.com/d-SEAMS/seams-core.git
 # Annotated tag v2.14.0, commit acc8bbc803f55bac39493c85300f87a8ce302829.
 revision = v2.14.0
 depth = 1
+# Applied when this subproject is first fetched. `seams read` then exits 2
+# on a missing or unreadable PDB, GRO, DCD, or .con file.
+diff_files = seams-readable-input.patch
 
 [provide]
 seams-core = yds_dep
