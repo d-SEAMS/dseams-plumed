@@ -4,13 +4,14 @@
   feature_check.py PLUMED_BIN MODULE_SO [--require-chemfiles] [--require-readcon]
 
 DSEAMS_CAGES never opens a structure file itself (frames come from the MD
-engine through PLUMED's getPosition()/getBox()), so there is nothing here to
-read a .con, PDB or GRO file through: this test exists to prove the feature
-query the module exports (dseams_plumed_has_chemfiles /
-dseams_plumed_has_readcon, see src/DseamsCages.cpp) correctly reports what
-the linked seams-core engine supports, matching the SEAMS_HAS_CHEMFILES /
-SEAMS_HAS_READCON compile_args meson.build picked up from the engine
-dependency. See README.org, Install.
+engine through PLUMED's getPosition()/getBox()). This test only checks the
+feature query the module exports (dseams_plumed_has_chemfiles /
+dseams_plumed_has_readcon, see src/DseamsCages.cpp): whether the linked
+seams-core engine was built with those readers, matching the
+SEAMS_HAS_CHEMFILES / SEAMS_HAS_READCON compile_args meson.build picked up
+from the engine dependency. tests/reader_fail_check.py is the separate
+check that `seams read` exits 2 on a missing or unreadable PDB, GRO, DCD,
+or .con file. See README.org, Install.
 
 libdseams_plumed.so has unresolved PLMD::* symbols (the PLUMED kernel
 resolves them when LOAD dlopens the module; see meson.build), so a bare
